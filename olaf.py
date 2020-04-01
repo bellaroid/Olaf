@@ -7,6 +7,7 @@ from werkzeug.routing import Map, Rule
 from werkzeug.exceptions import HTTPException, NotFound
 from werkzeug.middleware.shared_data import SharedDataMiddleware
 from werkzeug.utils import redirect
+from werkzeug.serving import run_simple
 from olaf.http import dispatch
 
 logger = logging.getLogger("werkzeug")
@@ -18,7 +19,6 @@ class Olaf(object):
         response = dispatch(request)
         now = time.time()
         duration = round(now - start, 3)
-        dt = datetime.datetime.fromtimestamp(now)
 
         ip = request.headers.get('X-Forwarded-For', request.remote_addr)
         host = request.host.split(':', 1)[0]
@@ -63,6 +63,5 @@ def create_app():
     return app
 
 if __name__ == '__main__':
-    from werkzeug.serving import run_simple
     app = create_app()
-    run_simple('127.0.0.1', 5000, app, use_debugger=True, use_reloader=True)
+    run_simple('127.0.0.1', 5000, app, use_debugger=True, use_reloader=True, passthrough_errors=True)
