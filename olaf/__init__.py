@@ -1,6 +1,7 @@
+from .db import ModelRegistry
 import logging
 
-_logger = logging.getLogger("werkzeug")
+_logger = logging.getLogger(__name__)
 
 def get_database():
     """
@@ -16,6 +17,7 @@ def get_database():
 
 
 db = get_database()
+registry = ModelRegistry()
 
 from . import fields
 from . import models
