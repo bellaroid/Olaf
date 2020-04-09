@@ -1,54 +1,61 @@
+from bson import ObjectId
+
+
 class BaseField(object):
-    """ 
+    """ Base field with default initializations
+    and validations. All other fields should extend
+    this class.
     """
 
-    _value = None
-
     def __init__(self, required=False, default=None):
-        self._required = required
-        self._default = default
+        self.__required__ = required
+        self.__default__ = self.__value__ = default
 
-    def __repr__(self):
-        return "<Field {}>".format(self.__class__.__name__)
-
-    def __set__(self, value):
-        self.validate(value)
-        self._value = value
-
-    def to_python(self):
-        return self._value
-
-    def to_mongo(self):
-        return self._value
+    def __set__(self, inst, value):
+        self.__value__ = value
 
     def validate(self, value):
-        if value is None:
-            raise ValueError("Required field got NoneType value")
-        return True
+        return
 
 
 class Identifier(BaseField):
-    """ Field Class for storing Document IDs
+    """ Field Class for storing Document ObjectIDs
     """
+
+    def __init__(self):
+        self.__default__ = ObjectId()
+        self.__required__ = True
+
+    def __set__(self, inst, value):
+        if isinstance(value, ObjectId):
+            self.__value__ = value
+        elif isinstance(value, str):
+            self.__value__ = ObjectId(value)
+        else:
+            raise ValueError("Field Identifier requires either a str or an ObjectID, got {} instead".format(
+                value.__class__.__name__))
 
 
 class Char(BaseField):
     """ Field Class for storing strings
     """
-    _max_length = None
 
     def __init__(self, max_length=255, **kwargs):
         super().__init__(**kwargs)
-        self._max_length = max_length
+        self.__max_length__ = max_length
+
+    def __set__(self, inst, value):
+        self.__value__ = str(value)
 
     def validate(self, value):
-        if not isinstance(value, str):
-            raise ValueError("Expected string, but got {} instead".format(
-                value.__class__.__name__))
-        if self._max_length:
-            if len(self._value) > self._max_length:
-                raise ValueError(
-                    "The entered value exceeds the maximum length for this field")
+        strfied = None
+        try:
+            strfied = str(value)
+        except Exception:
+            return "Unable to convert value of type {} into string".format(value.__class__.__name__)
+        if self.__max_length__:
+            if len(strfied) > self.__max_length__:
+                return "The entered value exceeds the maximum length for this field"
         return super().validate(value)
 
 
@@ -56,10 +63,12 @@ class Integer(BaseField):
     """ Field Class for storing integer numbers
     """
 
-    def to_python(self):
-        if self._value:
-            return int(self._value)
+    def __set__(self, inst, value):
+        self.__value__ = int(value)
 
-    def to_mongo(self):
-        if self._value:
-            return int(self._value)
+    def validate(self, value):
+        try:
+            value = int(value)
+        except ValueError:
+            return "Expected integer or numeric string, got {} instead".format(value.__class__.__name__)
+        return super().validate(value)

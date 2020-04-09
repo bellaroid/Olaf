@@ -1,20 +1,19 @@
 import os
 import logging
-import datetime, time
+import time
 import colors
 from werkzeug.wrappers import Request
-from werkzeug.routing import Map, Rule
-from werkzeug.exceptions import HTTPException, NotFound
 from werkzeug.middleware.shared_data import SharedDataMiddleware
-from werkzeug.utils import redirect
 from werkzeug.serving import run_simple
 from olaf.http import dispatch
 
 logger = logging.getLogger("werkzeug")
 
+
 class Olaf(object):
 
-    def dispatch_request(self, request):
+    @staticmethod
+    def dispatch_request(request):
         start = time.time()
         response = dispatch(request)
         now = time.time()
@@ -55,12 +54,14 @@ class Olaf(object):
     def __call__(self, environ, start_response):
         return self.wsgi_app(environ, start_response)
 
+
 def create_app():
     app = Olaf()
     app.wsgi_app = SharedDataMiddleware(app.wsgi_app, {
-            '/static':  os.path.join(os.path.dirname(__file__), 'static')
-        })
+        '/static': os.path.join(os.path.dirname(__file__), 'static')
+    })
     return app
+
 
 if __name__ == '__main__':
     app = create_app()
