@@ -48,4 +48,5 @@ class Database(metaclass=DatabaseMeta):
         else:
             # Connect using full syntax
             client = MongoClient('mongodb://{}:{}@{}:{}/'.format(user, pswd, host, port))
-        self.client = client[database]
+        self.cl = client
+        self.db = client[database]
