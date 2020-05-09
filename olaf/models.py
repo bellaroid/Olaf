@@ -1,7 +1,7 @@
 from olaf.fields import BaseField, Identifier
 from olaf.db import Database
 from bson import ObjectId
-import copy
+
 
 database = Database()
 
@@ -31,13 +31,21 @@ class Model(metaclass=ModelMeta):
     parameter.
     """
 
+    # The _name attribute is required for each
+    # model definition.
+    _name = None
+
     # The id field should be available for all
     # models and shouldn't be overridden
     id = Identifier()
 
     def __init__(self, query):
-        self._data = dict()
+        self._cache = dict()
         self._query = query
+        if (self._name is None):
+            raise ValueError(
+                "Model {} attribute '_name' was not defined".format(
+                    self.__class__.__name__))
         self._cursor = database.db[self._name].find(query)
 
     def __repr__(self):
@@ -98,4 +106,4 @@ class Model(metaclass=ModelMeta):
     def ensure_one(self):
         """ Ensures current set contains a single document """
         if self.count() != 1:
-            raise ValueError("Expected Singleton")
+            raise ValueError("Expected singleton")
