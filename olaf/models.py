@@ -82,20 +82,33 @@ class Model(metaclass=ModelMeta):
         ids = [item["_id"] for item in cursor]
         return self.__class__({"_id": {"$in": ids}})
 
-    def browse(self, *args):
-        """ Given a set of ObjectIds or strs representing
+    def browse(self, ids):
+        """ Given a list of ObjectIds or strs representing
         an ObjectId, return a document set with the
         corresponding elements.
         """
-        # Handle single list parameter
-        if len(args) == 1 and isinstance(args[0], list):
-            args = args[0]
-
-        # Iterate over arguments
         items = []
-        for arg in args:
-            if not isinstance(arg, ObjectId):
-                items.append(ObjectId(arg))
+        if isinstance(ids, ObjectId):
+            # Handle singleton browse (OId)
+            items.append(ids)
+        elif isinstance(ids, str):
+            # Handle singleton browse (str)
+            items.append(ObjectId(ids))
+        elif isinstance(ids, list):
+            # Iterate over list of OId's
+            for oid in ids:
+                if isinstance(oid, ObjectId):
+                    items.append(oid)
+                elif isinstance(oid, str):
+                    items.append(ObjectId(oid))
+                else:
+                    raise TypeError("Expected str or ObjectId, " 
+                        "got {} instead".format(oid.__class__.__name__))
+        else:
+            raise TypeError(
+                "Expected list, str or ObjectId, " 
+                "got {} instead".format(ids.__class__.__name__))
+
         return self.__class__({"_id": {"$in": items}})
 
     def count(self):

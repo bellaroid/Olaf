@@ -29,15 +29,15 @@ class BaseField:
             return self
         else:
             instance.ensure_one()
+            attr = self.attr if self.attr != "id" else "_id"
             instance._cursor.rewind()
             item = instance._cursor.next()
-            return item.get(self.attr)
+            return item.get(attr)
 
 
 class Identifier(BaseField):
     """ Field Class for storing Document ObjectIDs
     """
-
     def __set__(self, instance, value):
         raise ValueError("Identifier field is read-only")
 
@@ -110,7 +110,9 @@ class Many2one(BaseField):
             return self
         self._check_comodel()
         value = super().__get__(instance, owner)
-        return registry[self._comodel_name]({"_id": value})
+        if value is None:
+            return value
+        return registry[self._comodel_name].browse(value)
 
     def __set__(self, instance, value):
         if value is not None:

@@ -1,5 +1,4 @@
 import pytest
-from olaf.addons.base.models.user import User, Group
 from olaf.models import Model
 from olaf import db, registry, fields
 

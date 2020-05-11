@@ -40,7 +40,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         """ Classes wrapped around this method
         will be added to the registry.
         """
-        self.__models__[cls._name] = cls
+        self.__models__[cls._name] = cls()
         return cls
 
 
