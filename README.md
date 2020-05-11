@@ -9,6 +9,10 @@ Its key features are (WIP):
 - Users, groups and security access rules
 - Native JSON-RPC support
 
+## Requirements
+
+- MongoDB (default parameters in `olaf/db.py`)
+
 ## Setup
 
 Clone this repository and `cd` into it.
