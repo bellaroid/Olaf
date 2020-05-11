@@ -7,7 +7,29 @@ from olaf import registry, models, fields, db
 class tModel(models.Model):
     _name = "test.model"
     name = fields.Char()
+    country = fields.Char(default="Argentina")
     age = fields.Integer()
+
+
+def test_unicity():
+    """ Make sure two instances
+    are not the same instance """
+    t_a = tModel()
+    t_b = tModel()
+    assert(t_a != t_b)
+
+
+def test_model_create():
+    """ Perform a basic creation of a new element.
+    Make sure counters are correct and default values
+    get assigned.
+    """
+    t = tModel()
+    ti = t.create({"name": "Mr. Roboto", "age": 32})
+    assert(ti.count() == 1)
+    assert(ti.name == "Mr. Roboto")
+    assert(ti.age == 32)
+    assert(ti.country == "Argentina")
 
 
 def test_model_browse():

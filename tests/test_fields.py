@@ -19,16 +19,7 @@ class tCoModel(Model):
     char = fields.Char()
 
 
-def test_unicity():
-    """ Make sure two instances 
-    are no the same instance
-    """
-    t_a = tModel()
-    t_b = tModel()
-    assert(t_a != t_b)
-
-
-def test_model_assign():
+def test_field_assign():
     """ Multiple assignation tests
     """
     # Create two instances of the tModel object
@@ -49,19 +40,6 @@ def test_model_assign():
     # Should raise exception since set has more than one value
     with pytest.raises(ValueError):
         tmod2.char_max_req
-
-
-def test_model_create():
-    """ Perform a basic creation of a new element.
-    Make sure counters are correct and default values
-    get assigned.
-    """
-    t = tModel()
-    ti = t.create({"char_max_req": "0123456789", "integer": 32})
-    assert(ti.count() == 1)
-    assert(ti.char_max_req == "0123456789")
-    assert(ti.integer == 32)
-    assert(ti.char_with_default == "Default")
 
 
 def test_char_max_length():
