@@ -284,7 +284,7 @@ class One2many(RelationshipField):
                     "Tuple argument #2 must be list, got {} instead".format(
                         value[1].__class__.__name__))
             
-            comodel = registry[self._comodel_name]
+            comodel = self._get_comodel()
             comodel.search({self._inversed_by: instance._id}).write({self._inversed_by: None})
             comodel.browse(value[1]).write({self._inversed_by: instance._id})
         else:
