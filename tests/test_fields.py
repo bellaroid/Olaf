@@ -116,13 +116,13 @@ def test_o2m():
     # Create Another
     rec.o2m = ('create', {"char_max_req": "o2m_2"})
     assert(rec.o2m.count() == 2)
-    
+
     # Write
     item = tModel().browse(recid)
     assert(item.char_with_default == "Default")
     rec.o2m = ('write', recid, {"char_with_default": "Not Default"})
     assert(item.char_with_default == "Not Default")
-    
+
     # Purge
     rec.o2m = ('purge', recid)
     assert(rec.o2m.count() == 1)
@@ -150,12 +150,6 @@ def test_o2m():
     assert(rec.o2m.count() == 2)
     rec.o2m = ('replace', recs.ids())
     assert(rec.o2m == recs)
-
-
-
-
-
-
 
 
 def test_finish():
