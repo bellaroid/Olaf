@@ -35,9 +35,9 @@ class Model(metaclass=ModelMeta):
     # model definition.
     _name = None
 
-    # The id field should be available for all
+    # The _id field should be available for all
     # models and shouldn't be overridden
-    id = Identifier()
+    _id = Identifier()
 
     def __init__(self, query=None):
         # Ensure _name attribute definition on child
@@ -50,7 +50,7 @@ class Model(metaclass=ModelMeta):
         fields = dict()
         for attr_name in dir(cls):
             attr = getattr(cls, attr_name)
-            if isinstance(attr, BaseField):
+            if issubclass(attr.__class__, BaseField):
                 fields[attr_name] = attr
         self._fields = fields
         # Set default query
@@ -63,6 +63,19 @@ class Model(metaclass=ModelMeta):
 
     def __repr__(self):
         return "<DocSet {} - {} items>".format(self._name, self.count())
+
+    def __eq__(self, other):
+        """ Determine if two DocSet instances
+        contain exactly the same documents.
+        """
+        if not isinstance(other, self.__class__):
+            raise TypeError(
+                "Cannot compare apples with oranges "
+                "(nor '{}' with  '{}')".format(self.__class__, other.__class__))
+        # FIXME: Can this be done more efficiently?
+        set_a = {item._id for item in self}
+        set_b = {item._id for item in other}
+        return set_a == set_b
 
     def __iter__(self):
         self._cursor.rewind()
@@ -78,7 +91,7 @@ class Model(metaclass=ModelMeta):
 
     def search(self, query):
         """ Return a new set of documents """
-        cursor = database.db[self._name].find(query, {"_id": 1})
+        cursor = database.db[self._name].find(query)
         ids = [item["_id"] for item in cursor]
         return self.__class__({"_id": {"$in": ids}})
 
@@ -102,11 +115,11 @@ class Model(metaclass=ModelMeta):
                 elif isinstance(oid, str):
                     items.append(ObjectId(oid))
                 else:
-                    raise TypeError("Expected str or ObjectId, " 
-                        "got {} instead".format(oid.__class__.__name__))
+                    raise TypeError("Expected str or ObjectId, "
+                                    "got {} instead".format(oid.__class__.__name__))
         else:
             raise TypeError(
-                "Expected list, str or ObjectId, " 
+                "Expected list, str or ObjectId, "
                 "got {} instead".format(ids.__class__.__name__))
 
         return self.__class__({"_id": {"$in": items}})
@@ -123,9 +136,18 @@ class Model(metaclass=ModelMeta):
 
     def write(self, vals):
         """ Write values to the documents in the current set"""
-        self.validate(vals)
-        database.db[self._name].update_many(self._query, self._buffer)
-        self._buffer.clear()
+        self._implicit_save = False
+        try:
+            # Let each field validate its value.
+            for field_name in vals.keys():
+                if field_name in self._fields:
+                    setattr(self, field_name, vals[field_name])
+
+            self._save()
+        except Exception:
+            raise
+        finally:
+            self._implicit_save = True
         return
 
     def read(self, fields=[]):
@@ -135,6 +157,14 @@ class Model(metaclass=ModelMeta):
         for doc in self._cursor:
             result.append(doc)
         return result
+
+    def unlink(self):
+        """ Deletes all the documents in the set.
+        Return the amount of deleted elements.
+        """
+        outcome = database.db[self._name].delete_many(self._query)
+        return outcome.deleted_count
+
 
     def _save(self):
         """ Write values in buffer to database and clear it.
@@ -164,7 +194,7 @@ class Model(metaclass=ModelMeta):
                                 "Missing value for required field '{}'".format(field_name))
                     else:
                         # Value not present and not required
-                        if field_name == "id":
+                        if field_name == "_id":
                             continue
                         if hasattr(field, "_default"):
                             vals[field_name] = field._default
@@ -173,10 +203,19 @@ class Model(metaclass=ModelMeta):
                 # Let each field validate its value.
                 setattr(self, field_name, vals[field_name])
         except Exception:
-            self._implicit_save = True
             raise
+        finally:
+            self._implicit_save = True
 
     def ensure_one(self):
         """ Ensures current set contains a single document """
         if self.count() != 1:
             raise ValueError("Expected singleton")
+
+    def ids(self, as_strings=False):
+        """ Returns a list of ObjectIds contained 
+        in the current DocSet
+        """
+        if as_strings:
+            return [str(item._id) for item in self]
+        return [item._id for item in self]

@@ -25,3 +25,4 @@ class Group(models.Model):
     _name = "base.group"
 
     name = fields.Char(required=True, max_length=255)
+    user_ids = fields.One2many('base.user', 'group_id')
