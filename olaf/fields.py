@@ -12,6 +12,7 @@ class BaseField:
     """
 
     def __init__(self, *args, **kwargs):
+        self.attr = None    # Silence Linters
         self._required = kwargs.get("required", False)
         if "default" in kwargs:
             self._default = kwargs["default"]
