@@ -1,6 +1,6 @@
 import os
 from pymongo import MongoClient
-
+from pymongo.errors import ServerSelectionTimeoutError
 
 class ModelRegistryMeta(type):
     """ This class ensures there's always a single
@@ -67,12 +67,21 @@ class Database(metaclass=DatabaseMeta):
         user = os.getenv("MONGODB_USER", None)
         host = os.getenv("MONGODB_HOST", "localhost")
         port = os.getenv("MONGODB_PORT", "27017")
-        if not user and not pswd:
-            # Connect using simplified syntax
-            client = MongoClient('mongodb://{}:{}/'.format(host, port))
+        tout = os.getenv("MONGODB_TIMEOUT", 2000)
+        if user and pswd:
+            connstr = "mongodb://{}:{}@{}:{}/".format(user, pswd, host, port)
+        elif not user and not pswd:
+            connstr = "mongodb://{}:{}".format(host, port)
         else:
-            # Connect using full syntax
-            client = MongoClient(
-                'mongodb://{}:{}@{}:{}/'.format(user, pswd, host, port))
+            raise ValueError("MongoDB user or password were not specified")
+        # Create Client
+        client = MongoClient(connstr, serverSelectionTimeoutMS=tout)
+        
+        # Verify Connection
+        try:
+            client.server_info()
+        except ServerSelectionTimeoutError as e:
+            raise RuntimeError("Unable to connect to MongoDB: {}".format(e))
+    
         self.cl = client
         self.db = client[database]
