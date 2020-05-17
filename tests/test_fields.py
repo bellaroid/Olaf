@@ -11,6 +11,7 @@ class tModel(Model):
     char_with_default = fields.Char(default="Default")
     integer = fields.Integer()
     m2o = fields.Many2one("TestCoModel")
+    m2m = fields.Many2many("TestTagModel")
 
 
 @registry.add
@@ -18,6 +19,12 @@ class tCoModel(Model):
     _name = "TestCoModel"
     char = fields.Char()
     o2m = fields.One2many('TestModel', 'm2o')
+
+
+@registry.add
+class tTagModel(Model):
+    _name = "TestTagModel"
+    name = fields.Char()
 
 
 def test_field_assign():
@@ -152,8 +159,59 @@ def test_o2m():
     assert(rec.o2m == recs)
 
 
+def test_m2m():
+    """ Ensure m2m behaves like a o2m
+    """
+    rec = tModel().create({"char_max_req": "m2m_1"})
+    assert(rec.m2m.count() == 0)
+
+    # Create
+    rec.m2m = ("create", {"name": "Ninja"})
+    assert(rec.m2m.count() == 1)
+    assert(rec.m2m.name == "Ninja")
+    recid = rec.m2m._id
+
+    # Create Another
+    rec.m2m = ('create', {"name": "Toronja"})
+    assert(rec.m2m.count() == 2)
+
+    # Write
+    item = tTagModel().browse(recid)
+    rec.m2m = ('write', recid, {"name": "Ganja"})
+    assert(item.name == "Ganja")
+
+    # Purge
+    rec.m2m = ('purge', recid)
+    assert(rec.m2m.count() == 1)
+    with pytest.raises(ValueError):
+        item.ensure_one()
+
+    # Remove
+    recid = rec.m2m     # Take the ID of the remaining document
+    rec.m2m = ('remove', recid)
+    assert(rec.m2m.count() == 0)
+
+    # Clear
+    rec.m2m = ('create', {"name": "m2m_1"})
+    rec.m2m = ('create', {"name": "m2m_2"})
+    rec.m2m = ('create', {"name": "m2m_3"})
+    assert(rec.m2m.count() == 3)
+    rec.m2m = ('clear')
+    assert(rec.m2m.count() == 0)
+
+    # Replace
+    recs = tTagModel().search({"name":  {'$regex': "m2m_.*"}})
+    assert(recs.count() == 3)
+    rec.m2m = ('create', {"name": "m2m_4"})
+    rec.m2m = ('create', {"name": "m2m_5"})
+    assert(rec.m2m.count() == 2)
+    rec.m2m = ('replace', recs.ids())
+    assert(rec.m2m == recs)
+
+
 def test_finish():
     """ Clean previous tests """
     database = db.Database()
     database.db["TestModel"].drop()
     database.db["TestCoModel"].drop()
+    database.db["TestTagModel"].drop()
