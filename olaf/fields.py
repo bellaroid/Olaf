@@ -4,6 +4,18 @@ from olaf.db import Database, ModelRegistry
 database = Database()
 registry = ModelRegistry()
 
+class NoPersist:
+    """ Allows performing field assignments
+    without persisting changes into database
+    """
+    def __init__(self, instance):
+        self.instance = instance
+
+    def __enter__(self):
+        self.instance._implicit_save = False
+
+    def __exit__(self, type, value, traceback):
+        self.instance._implicit_save = True
 
 class BaseField:
     """ Base field with default initializations

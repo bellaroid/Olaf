@@ -1,4 +1,4 @@
-from olaf.fields import BaseField, Identifier
+from olaf.fields import BaseField, Identifier, NoPersist
 from olaf.db import Database
 from bson import ObjectId
 
@@ -178,8 +178,7 @@ class Model(metaclass=ModelMeta):
         """ Ensure a given dict of values passes all
         required field validations for this model
         """
-        self._implicit_save = False
-        try:
+        with NoPersist(self):
             # Check each model field
             for field_name, field in self._fields.items():
                 # If value is not present among vals
@@ -202,10 +201,6 @@ class Model(metaclass=ModelMeta):
                             vals[field_name] = None
                 # Let each field validate its value.
                 setattr(self, field_name, vals[field_name])
-        except Exception:
-            raise
-        finally:
-            self._implicit_save = True
 
     def ensure_one(self):
         """ Ensures current set contains a single document """
