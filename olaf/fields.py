@@ -1,12 +1,12 @@
 import bson
-from olaf.db import Connection, ModelRegistry
+from olaf.db import ModelRegistry
 
-database = Connection()
 registry = ModelRegistry()
 
 class NoPersist:
     """ Allows performing field assignments
-    without persisting changes into database
+    without persisting changes into database,
+    useful for performing validations.
     """
     def __init__(self, instance):
         self.instance = instance

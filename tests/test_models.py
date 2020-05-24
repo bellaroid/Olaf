@@ -69,5 +69,5 @@ def test_model_browse():
 
 def test_model_finish():
     """ Clean previous tests """
-    database = db.Connection()
-    database.db["test.model"].drop()
+    conn = db.Connection()
+    conn.db["test.model"].drop()

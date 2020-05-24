@@ -3,7 +3,7 @@ from olaf.db import Connection
 from bson import ObjectId
 
 
-database = Connection()
+conn = Connection()
 
 
 class ModelMeta(type):
@@ -59,7 +59,7 @@ class Model(metaclass=ModelMeta):
             self._query = query
         self._buffer = dict()
         self._implicit_save = True
-        self._cursor = database.db[self._name].find(query)
+        self._cursor = conn.db[self._name].find(query)
 
     def __repr__(self):
         return "<DocSet {} - {} items>".format(self._name, self.count())
@@ -91,7 +91,7 @@ class Model(metaclass=ModelMeta):
 
     def search(self, query):
         """ Return a new set of documents """
-        cursor = database.db[self._name].find(query)
+        cursor = conn.db[self._name].find(query)
         ids = [item["_id"] for item in cursor]
         return self.__class__({"_id": {"$in": ids}})
 
@@ -126,11 +126,11 @@ class Model(metaclass=ModelMeta):
 
     def count(self):
         """ Return the amount of documents in the current set """
-        return database.db[self._name].count_documents(self._query)
+        return conn.db[self._name].count_documents(self._query)
 
     def create(self, vals):
         self.validate(vals)
-        new_id = database.db[self._name].insert_one(self._buffer).inserted_id
+        new_id = conn.db[self._name].insert_one(self._buffer).inserted_id
         self._buffer.clear()
         return self.__class__({"_id": new_id})
 
@@ -162,14 +162,14 @@ class Model(metaclass=ModelMeta):
         """ Deletes all the documents in the set.
         Return the amount of deleted elements.
         """
-        outcome = database.db[self._name].delete_many(self._query)
+        outcome = conn.db[self._name].delete_many(self._query)
         return outcome.deleted_count
 
 
     def _save(self):
-        """ Write values in buffer to database and clear it.
+        """ Write values in buffer to conn and clear it.
         """
-        database.db[self._name].update_many(
+        conn.db[self._name].update_many(
             self._query, {"$set": self._buffer})
         self._buffer.clear()
         return
