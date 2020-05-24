@@ -211,7 +211,7 @@ def test_m2m():
 
 def test_finish():
     """ Clean previous tests """
-    database = db.Database()
+    database = db.Connection()
     database.db["TestModel"].drop()
     database.db["TestCoModel"].drop()
     database.db["TestTagModel"].drop()

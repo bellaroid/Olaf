@@ -44,22 +44,22 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         return cls
 
 
-class DatabaseMeta(type):
+class ConnectionMeta(type):
     """ This class ensures there's always a single
-    instance of the Database class along the entire
-    application. 
+    instance of the Connection class for each
+    application instance.
     """
     _instances = {}
 
     def __call__(cls, *args, **kwargs):
         if cls not in cls._instances:
             cls._instances[cls] = super(
-                DatabaseMeta, cls).__call__(*args, **kwargs)
+                ConnectionMeta, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
 
 
-class Database(metaclass=DatabaseMeta):
-    """ An instance of the Database Client """
+class Connection(metaclass=ConnectionMeta):
+    """ An instance of the Connection Client """
 
     def __init__(self):
         database = os.getenv("MONGODB_NAME", "olaf")

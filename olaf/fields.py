@@ -1,7 +1,7 @@
 import bson
-from olaf.db import Database, ModelRegistry
+from olaf.db import Connection, ModelRegistry
 
-database = Database()
+database = Connection()
 registry = ModelRegistry()
 
 class NoPersist:

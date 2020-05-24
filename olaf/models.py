@@ -1,9 +1,9 @@
 from olaf.fields import BaseField, Identifier, NoPersist
-from olaf.db import Database
+from olaf.db import Connection
 from bson import ObjectId
 
 
-database = Database()
+database = Connection()
 
 
 class ModelMeta(type):
