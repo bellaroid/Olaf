@@ -49,7 +49,7 @@ def toposort_modules(modules):
     while len(indeps) > 0:
         indep = indeps.pop(0) # Get an element from indeps
         result.append(indep)
-        for module_name, data in modules.items():
+        for module_name, _ in modules.items():
             if module_name == indep:
                 continue
             rels = [r for r in R if r[0] == indep and r[1] == module_name]

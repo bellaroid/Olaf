@@ -1,4 +1,5 @@
 import pytest
+import pymongo
 from olaf.models import Model
 from olaf import db, registry, fields
 
@@ -24,7 +25,7 @@ class tCoModel(Model):
 @registry.add
 class tTagModel(Model):
     _name = "TestTagModel"
-    name = fields.Char()
+    name = fields.Char(unique=True)
 
 
 def test_field_assign():
@@ -141,19 +142,24 @@ def test_o2m():
     rec.o2m = ('remove', recid)
     assert(rec.o2m.count() == 0)
 
+    # Add
+    modrec = tModel().create({"char_max_req": "o2mc_1"})
+    rec.o2m = ('add', modrec._id)
+    assert(rec.o2m.count() == 1)
+    
     # Clear
-    rec.o2m = ('create', {"char_max_req": "o2mc_1"})
     rec.o2m = ('create', {"char_max_req": "o2mc_2"})
     rec.o2m = ('create', {"char_max_req": "o2mc_3"})
-    assert(rec.o2m.count() == 3)
+    rec.o2m = ('create', {"char_max_req": "o2mc_4"})
+    assert(rec.o2m.count() == 4)
     rec.o2m = ('clear')
     assert(rec.o2m.count() == 0)
 
     # Replace
     recs = tModel().search({"char_max_req":  {'$regex': "o2mc_.*"}})
-    assert(recs.count() == 3)
-    rec.o2m = ('create', {"char_max_req": "o2mc_4"})
+    assert(recs.count() == 4)
     rec.o2m = ('create', {"char_max_req": "o2mc_5"})
+    rec.o2m = ('create', {"char_max_req": "o2mc_6"})
     assert(rec.o2m.count() == 2)
     rec.o2m = ('replace', recs.ids())
     assert(rec.o2m == recs)
@@ -191,22 +197,41 @@ def test_m2m():
     rec.m2m = ('remove', recid)
     assert(rec.m2m.count() == 0)
 
+    # Add
+    modrec = tTagModel().create({"name": "m2m_1"})
+    rec.m2m = ('add', modrec._id)
+    assert(rec.m2m.count() == 1)
+
     # Clear
-    rec.m2m = ('create', {"name": "m2m_1"})
     rec.m2m = ('create', {"name": "m2m_2"})
     rec.m2m = ('create', {"name": "m2m_3"})
-    assert(rec.m2m.count() == 3)
+    rec.m2m = ('create', {"name": "m2m_4"})
+    assert(rec.m2m.count() == 4)
     rec.m2m = ('clear')
     assert(rec.m2m.count() == 0)
 
     # Replace
     recs = tTagModel().search({"name":  {'$regex': "m2m_.*"}})
-    assert(recs.count() == 3)
-    rec.m2m = ('create', {"name": "m2m_4"})
+    assert(recs.count() == 4)
     rec.m2m = ('create', {"name": "m2m_5"})
+    rec.m2m = ('create', {"name": "m2m_6"})
     assert(rec.m2m.count() == 2)
     rec.m2m = ('replace', recs.ids())
     assert(rec.m2m == recs)
+
+    # Uniqueness of the compound key
+    with pytest.raises(pymongo.errors.DuplicateKeyError):
+        rec.m2m = ('add', modrec._id)
+        
+    with pytest.raises(pymongo.errors.DuplicateKeyError):
+        rec.m2m = ('create', {"name": "m2m_6"})
+
+
+def test_unicity():
+    """ Make sure unique fields are unique """
+    tTagModel().create({"name": "test_tag_1"})
+    with pytest.raises(pymongo.errors.DuplicateKeyError):
+        tTagModel().create({"name": "test_tag_1"})
 
 
 def test_finish():

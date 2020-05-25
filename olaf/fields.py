@@ -344,14 +344,15 @@ class Many2many(RelationshipField):
             # Import Model and ModelMeta
             from olaf.models import Model, ModelMeta
             # Create fields
-            rel_fld_a = Many2one(comodel_a_name)
-            rel_fld_b = Many2one(comodel_b_name)
+            rel_fld_a = Many2one(comodel_a_name, required=True)
+            rel_fld_b = Many2one(comodel_b_name, required=True)
             # Extract __dict__ (all Model's attributes, methods and descriptors)
             model_dict = dict(Model.__dict__)
             # Inject name and fields
             model_dict["_name"] = rel_name
             model_dict[rel_fld_a_name] = rel_fld_a
             model_dict[rel_fld_b_name] = rel_fld_b
+            model_dict["_compound_indexes"] = [(rel_fld_a_name, rel_fld_b_name)]
             # Create metaclass
             mod = ModelMeta("Model", (), model_dict)
             registry.add(mod)

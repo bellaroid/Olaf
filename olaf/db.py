@@ -1,5 +1,5 @@
 import os
-from pymongo import MongoClient
+from pymongo import MongoClient, DESCENDING
 from pymongo.errors import ServerSelectionTimeoutError
 
 class ModelRegistryMeta(type):
@@ -40,6 +40,17 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         """ Classes wrapped around this method
         will be added to the registry.
         """
+        from olaf.fields import BaseField
+        conn = Connection()
+        attrs = dir(cls)
+        for attr_name in attrs:
+            attr = getattr(cls, attr_name)
+            if attr_name == "_compound_indexes":
+                for tup_ind in attr:
+                    conn.db[cls._name].create_index([(ind, DESCENDING) for ind in tup_ind], unique=True)
+            if issubclass(attr.__class__, BaseField):
+                if attr._unique:
+                    conn.db[cls._name].create_index(attr_name, unique=True)
         self.__models__[cls._name] = cls()
         return cls
 
