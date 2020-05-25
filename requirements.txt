@@ -2,3 +2,4 @@ werkzeug
 pymongo
 ansicolors
 pytest
+pyyaml

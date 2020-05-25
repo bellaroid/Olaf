@@ -1,0 +1,11 @@
+name: "base"
+title: "Base"
+version: "0.0"
+depends: []
+author: "Bellaroid"
+category: "Base"
+description: >
+  Provides basic functionality for the Olaf framework
+data:
+  - "data/user.yml"
+demo: []

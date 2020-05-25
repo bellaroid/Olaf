@@ -25,7 +25,13 @@ class BaseField:
 
     def __init__(self, *args, **kwargs):
         self.attr = None    # Silence Linters
+        # Get basic attributes
         self._required = kwargs.get("required", False)
+        self._unique = kwargs.get("unique", False)
+        # Unique fields are always required
+        if self._unique:
+            self._required = True
+        # Keep _default undeclared if not specified
         if "default" in kwargs:
             self._default = kwargs["default"]
 
