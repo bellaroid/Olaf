@@ -40,6 +40,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         """ Classes wrapped around this method
         will be added to the registry.
         """
+        # Handle Index and Compound Indexes creation
         from olaf.fields import BaseField
         conn = Connection()
         attrs = dir(cls)
@@ -51,6 +52,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
             if issubclass(attr.__class__, BaseField):
                 if attr._unique:
                     conn.db[cls._name].create_index(attr_name, unique=True)
+        # Add Instance to the Registry
         self.__models__[cls._name] = cls()
         return cls
 

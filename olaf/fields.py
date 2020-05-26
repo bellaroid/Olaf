@@ -109,7 +109,7 @@ class Integer(BaseField):
         super().__set__(instance, value)
 
 
-class RelationshipField(BaseField):
+class RelationalField(BaseField):
     """ Provides a set of common utilities
     for relational fields.
     """
@@ -117,6 +117,7 @@ class RelationshipField(BaseField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         comodel_name = (args[0:1] or (None,))[0]
+        self._ondelete = kwargs.get("ondelete", "SET NULL")
         if comodel_name is None:
             raise ValueError("comodel_name not specified")
         self._comodel_name = comodel_name
@@ -155,7 +156,7 @@ class RelationshipField(BaseField):
         return item
 
 
-class Many2one(RelationshipField):
+class Many2one(RelationalField):
     """ Field Class for storing a representation of
     a record from a different collection or the same one
     """
@@ -179,7 +180,7 @@ class Many2one(RelationshipField):
         super().__set__(instance, value)
 
 
-class One2many(RelationshipField):
+class One2many(RelationalField):
     """ Field Class for storing a list
     of references to a given model
     """
@@ -319,7 +320,7 @@ class One2many(RelationshipField):
                 "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
 
 
-class Many2many(RelationshipField):
+class Many2many(RelationalField):
     """ A many2many relationship works by creating an intermediate
     model with two Many2one fields, each one pointing to one of the
     involved models, resulting in a One2many field in  ends.

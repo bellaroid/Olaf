@@ -2,11 +2,16 @@ import yaml, os, logging, importlib
 
 _logger = logging.getLogger(__name__)
 
-def import_modules():
+def initialize():
+    """
+    Olaf Bootstraping Function
+    """
+    # Read All Modules
     modules = manifest_parser()
     sorted_modules = toposort_modules(modules)
     for module_name in sorted_modules:
         importlib.import_module(module_name)
+    # At this point all models should be instanciated
 
 def manifest_parser():
     """

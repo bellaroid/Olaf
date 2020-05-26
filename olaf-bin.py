@@ -2,10 +2,12 @@ import os
 import logging
 import time
 import colors
+from olaf.http import dispatch
+from olaf.utils import initialize
 from werkzeug.wrappers import Request
 from werkzeug.middleware.shared_data import SharedDataMiddleware
 from werkzeug.serving import run_simple
-from olaf.http import dispatch
+
 
 logger = logging.getLogger("werkzeug")
 
@@ -64,5 +66,7 @@ def create_app():
 
 
 if __name__ == '__main__':
+    initialize()
     app = create_app()
-    run_simple('127.0.0.1', 5000, app, use_debugger=True, use_reloader=True, passthrough_errors=True)
+    run_simple('127.0.0.1', 5000, app, use_debugger=True,
+               use_reloader=True, passthrough_errors=True)

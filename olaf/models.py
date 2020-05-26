@@ -1,4 +1,4 @@
-from olaf.fields import BaseField, Identifier, NoPersist
+from olaf.fields import BaseField, Identifier, NoPersist, RelationalField
 from olaf.db import Connection
 from bson import ObjectId
 
