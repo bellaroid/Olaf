@@ -1,7 +1,8 @@
 import pytest
 import pymongo
-from olaf.models import Model
 from olaf import db, registry, fields
+from olaf.utils import initialize
+from olaf.models import Model
 
 
 @registry.add
@@ -26,6 +27,10 @@ class tCoModel(Model):
 class tTagModel(Model):
     _name = "TestTagModel"
     name = fields.Char(unique=True)
+
+
+# Initialize App Engine After All Model Classes Are Declared
+initialize()
 
 
 def test_field_assign():

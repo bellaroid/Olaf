@@ -1,9 +1,14 @@
 from olaf.fields import BaseField, Identifier, NoPersist, RelationalField
 from olaf.db import Connection
 from bson import ObjectId
+from olaf import registry
 
 
 conn = Connection()
+
+
+class DeletionConstraintError(BaseException):
+    pass
 
 
 class ModelMeta(type):
@@ -162,9 +167,26 @@ class Model(metaclass=ModelMeta):
         """ Deletes all the documents in the set.
         Return the amount of deleted elements.
         """
+        if self._name in registry.__deletion_constraints__:
+            for constraint in registry.__deletion_constraints__[self._name]:
+                mod, fld, cons = constraint
+                related = registry[mod].search({fld: {"$in": self.ids()}})
+                if cons == "RESTRICT":
+                    if related.count() > 0:
+                        raise DeletionConstraintError(
+                            "There are one or more records referencing "
+                            "the current set. Deletion aborted.")
+                elif cons == "CASCADE":
+                    if related.count() > 0:
+                        related.unlink()
+                elif cons == "SET NULL":
+                    if related.count() > 0:
+                        related.write({fld: None})
+                else:
+                    raise ValueError(
+                        "Invalid deletion constraint '{}'".format(cons))
         outcome = conn.db[self._name].delete_many(self._query)
         return outcome.deleted_count
-
 
     def _save(self):
         """ Write values in buffer to conn and clear it.

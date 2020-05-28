@@ -1,14 +1,31 @@
 import pytest
 import bson
 from olaf import registry, models, fields, db
+from olaf.utils import initialize
+from olaf.models import DeletionConstraintError
 
 
 @registry.add
 class tModel(models.Model):
-    _name = "test.model"
+    _name = "test.models.model"
+
     name = fields.Char()
     country = fields.Char(default="Argentina")
     age = fields.Integer()
+    cascade_id = fields.Many2one("test.models.comodel", ondelete="CASCADE")
+    restrict_id = fields.Many2one("test.models.comodel", ondelete="RESTRICT")
+    setnull_id = fields.Many2one("test.models.comodel", ondelete="SET NULL")
+
+
+@registry.add
+class tCoModel(models.Model):
+    _name = "test.models.comodel"
+
+    name = fields.Char(required=True)
+
+
+# Initialize App Engine After All Model Classes Are Declared
+initialize()
 
 
 def test_unicity():
@@ -45,29 +62,63 @@ def test_model_create():
 
 def test_model_browse():
     # Test all possible singleton browse calls
-    tm1 = registry["test.model"].create({"name": "Test", "age": 10})
-    tm2 = registry["test.model"].browse(tm1._id)
-    tm3 = registry["test.model"].browse([tm1._id])
-    tm4 = registry["test.model"].browse(str(tm1._id))
-    tm5 = registry["test.model"].browse([str(tm1._id)])
+    tm1 = registry["test.models.model"].create({"name": "Test", "age": 10})
+    tm2 = registry["test.models.model"].browse(tm1._id)
+    tm3 = registry["test.models.model"].browse([tm1._id])
+    tm4 = registry["test.models.model"].browse(str(tm1._id))
+    tm5 = registry["test.models.model"].browse([str(tm1._id)])
     assert(tm1._id == tm2._id == tm3._id == tm4._id == tm5._id)
     # Test browsing with list using OId and str
-    tma = registry["test.model"].create({"name": "Test_A", "age": 10})
-    tmb = registry["test.model"].create({"name": "Test_B", "age": 20})
-    tmc = registry["test.model"].browse([tma._id, str(tmb._id)])
+    tma = registry["test.models.model"].create({"name": "Test_A", "age": 10})
+    tmb = registry["test.models.model"].create({"name": "Test_B", "age": 20})
+    tmc = registry["test.models.model"].browse([tma._id, str(tmb._id)])
     assert(tmc.count() == 2)
     # Browsing a non ObjectId string should fail
     with pytest.raises(bson.errors.InvalidId):
-        registry["test.model"].browse("123456789")
+        registry["test.models.model"].browse("123456789")
     # Browsing a list with a non ObjectId string should fail
     with pytest.raises(bson.errors.InvalidId):
-        registry["test.model"].browse([tma._id, "123456789"])
+        registry["test.models.model"].browse([tma._id, "123456789"])
     # Browsing something out of a list, str or OId should fail
     with pytest.raises(TypeError):
-        registry["test.model"].browse(23)
+        registry["test.models.model"].browse(23)
+
+
+def test_delete_cascade():
+    """ Verify Cascaded deletion """
+    tc1 = registry["test.models.comodel"].create({"name": "Test"})
+    tm1 = registry["test.models.model"].create(
+        {"name": "Test", "age": 10, "cascade_id": tc1._id})
+    assert(tm1.cascade_id._id == tc1._id)
+    tc1.unlink()
+    assert(tm1.count() == 0)
+
+
+def test_delete_restrict():
+    """ Verify Restricted deletion """
+    tc1 = registry["test.models.comodel"].create({"name": "Test"})
+    tm1 = registry["test.models.model"].create(
+        {"name": "Test", "age": 10, "restrict_id": tc1._id})
+    assert(tm1.restrict_id._id == tc1._id)
+    with pytest.raises(DeletionConstraintError):
+        tc1.unlink()
+    tm1.write({"restrict_id": None})
+    assert(tc1.unlink() == 1)
+    assert(tc1.count() == 0)
+
+
+def test_delete_set_null():
+    """ Verify Set Null on deletion """
+    tc1 = registry["test.models.comodel"].create({"name": "Test"})
+    tm1 = registry["test.models.model"].create(
+        {"name": "Test", "age": 10, "setnull_id": tc1._id})
+    assert(tm1.setnull_id._id == tc1._id)
+    tc1.unlink()
+    assert(tm1.setnull_id == None)
 
 
 def test_model_finish():
     """ Clean previous tests """
     conn = db.Connection()
-    conn.db["test.model"].drop()
+    conn.db["test.models.model"].drop()
+    conn.db["test.models.comodel"].drop()

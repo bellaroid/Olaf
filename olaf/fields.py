@@ -117,7 +117,6 @@ class RelationalField(BaseField):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         comodel_name = (args[0:1] or (None,))[0]
-        self._ondelete = kwargs.get("ondelete", "SET NULL")
         if comodel_name is None:
             raise ValueError("comodel_name not specified")
         self._comodel_name = comodel_name
@@ -160,6 +159,9 @@ class Many2one(RelationalField):
     """ Field Class for storing a representation of
     a record from a different collection or the same one
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._ondelete = kwargs.get("ondelete", "SET NULL")
 
     def __get__(self, instance, owner):
         """ Returns a DocSet containing a single document

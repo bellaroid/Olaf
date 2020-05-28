@@ -23,6 +23,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
     """
 
     def __init__(self):
+        self.__deletion_constraints__ = dict()
         self.__models__ = dict()
 
     def __iter__(self):
@@ -32,9 +33,10 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         return len(self.__models__)
 
     def __getitem__(self, key):
+        """ Return an instance of the requested model class """
         if not key in self.__models__:
             raise KeyError("Model not found in registry")
-        return self.__models__[key]
+        return self.__models__[key]()
 
     def add(self, cls):
         """ Classes wrapped around this method
@@ -52,8 +54,8 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
             if issubclass(attr.__class__, BaseField):
                 if attr._unique:
                     conn.db[cls._name].create_index(attr_name, unique=True)
-        # Add Instance to the Registry
-        self.__models__[cls._name] = cls()
+        # Add class to the Registry
+        self.__models__[cls._name] = cls
         return cls
 
 
