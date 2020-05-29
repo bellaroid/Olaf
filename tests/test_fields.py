@@ -245,3 +245,4 @@ def test_finish():
     conn.db["TestModel"].drop()
     conn.db["TestCoModel"].drop()
     conn.db["TestTagModel"].drop()
+    conn.db["TestModel_TestTagModel_rel"].drop()
