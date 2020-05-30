@@ -120,6 +120,7 @@ class RelationalField(BaseField):
         if comodel_name is None:
             raise ValueError("comodel_name not specified")
         self._comodel_name = comodel_name
+        self._represent = kwargs.get("represent", "name")
 
     def _get_comodel(self):
         if self._comodel_name is None:

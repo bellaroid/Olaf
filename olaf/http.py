@@ -51,7 +51,10 @@ def jsonrpc_dispatcher(request):
         }))
         return response
 
-    if data["method"] not in []:     # TODO: List of available methods
+    if data["method"] == "call":
+        params = data["params"]
+        response.set_data(handle_call(params))
+    else:
         response.set_data(json.dumps({
             "id": data["id"],
             "error": {
@@ -62,3 +65,7 @@ def jsonrpc_dispatcher(request):
         }))
 
     return response
+
+def handle_call(request):
+    pass
+
