@@ -117,6 +117,19 @@ def test_delete_set_null():
     assert(tm1.setnull_id == None)
 
 
+def test_read():
+    """ Ensure read values are correct """
+    tc1 = registry["test.models.comodel"].create({"name": "Test"})
+    tm1 = registry["test.models.model"].create(
+        {"name": "Test", "age": 10, "setnull_id": tc1._id})
+
+    read = tm1.read()
+    assert(read[0]["name"] == "Test")
+    assert(read[0]["age"] == 10)
+    assert(read[0]["setnull_id"][0] == tc1._id)
+    # TODO: Test x2many read
+
+
 def test_model_finish():
     """ Clean previous tests """
     conn = db.Connection()
