@@ -2,4 +2,3 @@ werkzeug
 pymongo
 pytest
 pyyaml
-ujson

@@ -1,4 +1,4 @@
-import ujson as json
+import json
 from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers.json import JSONMixin
