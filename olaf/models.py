@@ -207,8 +207,9 @@ class Model(metaclass=ModelMeta):
                 elif isinstance(self._fields[field], Many2many):
                     # Many2many Prefetch
                     related_ids = [item["_id"] for item in data]
-                    rel_model_name = "{}_{}_rel".format(self._name.replace(
-                        ".", "_"), self._fields[field]._comodel_name.replace(".", "_"))
+                    rel_model_name = "{}_{}_rel".format(
+                        self._name.replace(".", "_"), 
+                        self._fields[field]._comodel_name.replace(".", "_"))
                     rel_model_field = "{}_id".format(
                         self._name.replace(".", "_"))
                     rel_comodel_field = "{}_id".format(
@@ -243,6 +244,8 @@ class Model(metaclass=ModelMeta):
             doc = dict()
             for field in fields:
                 field_inst = self._fields[field]
+                if field_inst._exclude:
+                    continue
                 if issubclass(field_inst.__class__, RelationalField):
                     if isinstance(field_inst, Many2one):
                         # Get Many2one representation from caché

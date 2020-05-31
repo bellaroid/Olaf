@@ -34,10 +34,20 @@ class BaseField:
         # Keep _default undeclared if not specified
         if "default" in kwargs:
             self._default = kwargs["default"]
+        # Excluded fields won't be returned on read()
+        self._exclude = kwargs.get("exclude", False)
+        # Custom setter function allows overriding default behaviour
+        if "setter" in kwargs:
+            self._setter = kwargs["setter"]
 
     def __set__(self, instance, value):
         if value is None and self._required:
             raise ValueError("Field {} is required".format(self.attr))
+        if hasattr(self, "_setter"):
+            # Get value from custom setter
+            breakpoint()
+            setter = getattr(instance, self._setter)
+            value = setter(value)
         instance._buffer[self.attr] = value
         if getattr(instance, "_implicit_save", True):
             instance._save()
