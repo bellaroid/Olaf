@@ -15,6 +15,8 @@ class tModel(models.Model):
     cascade_id = fields.Many2one("test.models.comodel", ondelete="CASCADE")
     restrict_id = fields.Many2one("test.models.comodel", ondelete="RESTRICT")
     setnull_id = fields.Many2one("test.models.comodel", ondelete="SET NULL")
+    onetomany_ids = fields.One2many("test.models.comodel", "inverse_id")
+    many2many_ids = fields.Many2many("test.models.comdodel")
 
 
 @registry.add
@@ -22,6 +24,7 @@ class tCoModel(models.Model):
     _name = "test.models.comodel"
 
     name = fields.Char(required=True)
+    inverse_id = fields.Many2one("test.models.model")
 
 
 # Initialize App Engine After All Model Classes Are Declared
@@ -119,16 +122,18 @@ def test_delete_set_null():
 
 def test_read():
     """ Ensure read values are correct """
-    tc1 = registry["test.models.comodel"].create({"name": "Test"})
+    tc1 = registry["test.models.comodel"].create({"name": "Test_01"})
+    tc2 = registry["test.models.comodel"].create({"name": "Test_02"})
     tm1 = registry["test.models.model"].create(
-        {"name": "Test", "age": 10, "setnull_id": tc1._id})
-
+        {"name": "Test", "age": 10, "setnull_id": tc1._id, "onetomany_ids": ("replace", [tc1._id, tc2._id])})
     read = tm1.read()
     assert(read[0]["name"] == "Test")
     assert(read[0]["age"] == 10)
+    # Test Many2one
     assert(read[0]["setnull_id"][0] == tc1._id)
-    # TODO: Test x2many read
-
+    # Test One2many
+    assert((tc1._id, tc1.name) in read[0]["onetomany_ids"])
+    assert((tc2._id, tc2.name) in read[0]["onetomany_ids"])
 
 def test_model_finish():
     """ Clean previous tests """

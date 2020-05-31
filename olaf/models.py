@@ -218,7 +218,8 @@ class Model(metaclass=ModelMeta):
         # Iterate over data
         for dictitem in data:
             doc = dict()
-            for field,value in dictitem.items():
+            for field in fields:
+                value = dictitem.get(field, None)
                 field_inst = self._fields[field]
                 if issubclass(field_inst.__class__, RelationalField):
                     if isinstance(field_inst, Many2one):
