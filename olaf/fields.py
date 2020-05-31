@@ -45,7 +45,6 @@ class BaseField:
             raise ValueError("Field {} is required".format(self.attr))
         if hasattr(self, "_setter"):
             # Get value from custom setter
-            breakpoint()
             setter = getattr(instance, self._setter)
             value = setter(value)
         instance._buffer[self.attr] = value
