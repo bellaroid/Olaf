@@ -65,7 +65,13 @@ class Identifier(BaseField):
     """
 
     def __set__(self, instance, value):
-        raise ValueError("Identifier field is read-only")
+        if not isinstance(value, bson.ObjectId):
+            try:
+                value = bson.ObjectId(value)
+            except TypeError:
+                raise TypeError(
+                    "Cannot convert value of type {} to ObjectId".format(type(value).__name__))
+        instance._buffer["_id"]: value
 
 
 class Char(BaseField):

@@ -16,7 +16,7 @@ class tModel(models.Model):
     restrict_id = fields.Many2one("test.models.comodel", ondelete="RESTRICT")
     setnull_id = fields.Many2one("test.models.comodel", ondelete="SET NULL")
     onetomany_ids = fields.One2many("test.models.comodel", "inverse_id")
-    many2many_ids = fields.Many2many("test.models.comdodel")
+    manytomany_ids = fields.Many2many("test.models.comodel")
 
 
 @registry.add
@@ -135,9 +135,11 @@ def test_read():
     # Test Many2one
     assert(read[0]["setnull_id"][0] == tc1._id)
     # Test One2many
+    assert(len(read[0]["onetomany_ids"]) == 2)
     assert((tc1._id, tc1.name) in read[0]["onetomany_ids"])
     assert((tc2._id, tc2.name) in read[0]["onetomany_ids"])
     # Test Many2many
+    assert(len(read[0]["manytomany_ids"]) == 2)
     assert((tc1._id, tc1.name) in read[0]["manytomany_ids"])
     assert((tc2._id, tc2.name) in read[0]["manytomany_ids"])
 

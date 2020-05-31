@@ -152,7 +152,11 @@ class Model(metaclass=ModelMeta):
                 # Let each field validate its value.
                 for field_name in vals.keys():
                     if field_name in self._fields:
-                        setattr(self, field_name, vals[field_name])
+                        if field_name != "_id":
+                            setattr(self, field_name, vals[field_name])
+                        else:
+                            raise ValueError(
+                                "'_id' field is readonly once document has been persisted")
             except Exception:
                 raise
             self._save()
@@ -211,18 +215,24 @@ class Model(metaclass=ModelMeta):
                         self._fields[field]._comodel_name.replace(".", "_"))
                     rels_int = list(conn.db[rel_model_name].find(
                         {rel_model_field: {"$in": related_ids}}))
-                    rels_int_dict = {
-                        rel[rel_model_field]: rel[rel_comodel_field] for rel in rels_int}
                     rels_rep = list(conn.db[self._fields[field]._comodel_name].find(
                         {"_id": {"$in": [rel[rel_comodel_field] for rel in rels_int]}}, {represent: 1}))
                     rels_rep_dict = {rel["_id"]: rel[represent]
                                      for rel in rels_rep}
+                    rels_dict = dict()
+                    for rel in rels_int:
+                        if rel[rel_model_field] not in rels_dict:
+                            rels_dict[rel[rel_model_field]] = list()
+                        rels_dict[rel[rel_model_field]].append(
+                            rel[rel_comodel_field])
+
                     related_docs = dict()
-                    for oid, rel_oid in rels_int_dict.items():
+                    for oid, rels in rels_dict.items():
                         if oid not in related_docs:
                             related_docs[oid] = list()
-                        related_docs[oid].append(
-                            (rel_oid, rels_rep_dict[rel_oid]))
+                        for rel in rels:
+                            related_docs[oid].append(
+                                (rel, rels_rep_dict[rel]))
 
                 # Add relations to the caché dictionary
                 cache[field] = related_docs
@@ -232,11 +242,11 @@ class Model(metaclass=ModelMeta):
         for dictitem in data:
             doc = dict()
             for field in fields:
-                value = dictitem.get(field, None)
                 field_inst = self._fields[field]
                 if issubclass(field_inst.__class__, RelationalField):
                     if isinstance(field_inst, Many2one):
                         # Get Many2one representation from caché
+                        value = dictitem.get(field, None)
                         doc[field] = cache[field].get(value, None)
                     elif isinstance(field_inst, One2many) or isinstance(field_inst, Many2many):
                         # Get x2many representation from caché
