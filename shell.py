@@ -9,6 +9,6 @@ or
 ipython -i shell.py
 (in case you have ipython installed)
 """
-
+from olaf import registry
 from olaf.utils import initialize
 initialize()
