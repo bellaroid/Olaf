@@ -3,6 +3,7 @@
 Olaf (**O**penObject-**L**ike **A**bstract **F**ramework) is a project inspired by Odoo's OpenObject framework.
 
 Its key features are (WIP):
+
 * Modularity
 * Odoo-like syntax
 * Built-in ODM (in replacement of Odoo's ORM)
