@@ -312,8 +312,6 @@ class Model(metaclass=ModelMeta):
                                 "Missing value for required field '{}'".format(field_name))
                     else:
                         # Value not present and not required
-                        if field_name == "_id":
-                            continue
                         if hasattr(field, "_default"):
                             vals[field_name] = field._default
                         else:

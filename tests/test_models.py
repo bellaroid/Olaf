@@ -61,6 +61,10 @@ def test_model_create():
     assert(ti.name == "Mr. Roboto")
     assert(ti.age == 32)
     assert(ti.country == "Argentina")
+    # Ensure an OID can be provided for creating a new document
+    new_oid = bson.ObjectId()
+    ti2 = t.create({"_id": new_oid, "name": "Mr. Colombia", "age": 33})
+    assert(ti2._id == new_oid)
 
 
 def test_model_browse():
