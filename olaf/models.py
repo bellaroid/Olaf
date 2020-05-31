@@ -134,6 +134,12 @@ class Model(metaclass=ModelMeta):
         return conn.db[self._name].count_documents(self._query)
 
     def create(self, vals):
+        for field in vals.keys():
+            if field in self._fields and (
+                    isinstance(self._fields[field], One2many) or
+                    isinstance(self._fields[field], Many2many)):
+                raise ValueError(
+                    "Cannot assign value to {} during creation".format(field))
         self.validate(vals)
         new_id = conn.db[self._name].insert_one(self._buffer).inserted_id
         self._buffer.clear()
@@ -141,19 +147,15 @@ class Model(metaclass=ModelMeta):
 
     def write(self, vals):
         """ Write values to the documents in the current set"""
-        self._implicit_save = False
-        try:
-            # Let each field validate its value.
-            for field_name in vals.keys():
-                if field_name in self._fields:
-                    setattr(self, field_name, vals[field_name])
-
+        with NoPersist(self):
+            try:
+                # Let each field validate its value.
+                for field_name in vals.keys():
+                    if field_name in self._fields:
+                        setattr(self, field_name, vals[field_name])
+            except Exception:
+                raise
             self._save()
-        except Exception:
-            raise
-        finally:
-            self._implicit_save = True
-        return
 
     def read(self, fields=[]):
         """ Returns a list of dictionaries representing
@@ -167,7 +169,8 @@ class Model(metaclass=ModelMeta):
         cache = dict()
         # By calling the list constructor on a PyMongo cursor we retrieve all the records
         # in a single call. This is faster but may take lots of memory.
-        data = list(conn.db[self._name].find(self._query, {field:1 for field in fields}))
+        data = list(conn.db[self._name].find(
+            self._query, {field: 1 for field in fields}))
         for field in fields:
             if issubclass(self._fields[field].__class__, RelationalField):
                 # Create a caché dict with the representation
@@ -175,10 +178,12 @@ class Model(metaclass=ModelMeta):
                 represent = self._fields[field]._represent
                 if isinstance(self._fields[field], Many2one):
                     # Many2one Prefetch
-                    related_ids = [item[field] for item in data if item[field] is not None]
+                    related_ids = [item[field]
+                                   for item in data if item[field] is not None]
                     rels = list(conn.db[self._fields[field]._comodel_name].find(
-                        {"_id": {"$in": related_ids}}, {represent:1}))
-                    related_docs = {rel["_id"]: (rel["_id"], rel[represent]) for rel in rels}
+                        {"_id": {"$in": related_ids}}, {represent: 1}))
+                    related_docs = {rel["_id"]: (
+                        rel["_id"], rel[represent]) for rel in rels}
                 elif isinstance(self._fields[field], One2many):
                     # One2many Prefetch
                     inversed_by = self._fields[field]._inversed_by
@@ -193,25 +198,33 @@ class Model(metaclass=ModelMeta):
                     for rel in rels:
                         if rel[inversed_by] not in related_docs:
                             related_docs[rel[inversed_by]] = list()
-                        related_docs[rel[inversed_by]].append((rel["_id"], rel[represent]))
+                        related_docs[rel[inversed_by]].append(
+                            (rel["_id"], rel[represent]))
                 elif isinstance(self._fields[field], Many2many):
                     # Many2many Prefetch
                     related_ids = [item["_id"] for item in data]
-                    rel_model_name = "{}_{}_rel".format(self._name.replace(".", "_"), self._fields[field]._comodel_name.replace(".", "_"))
-                    rel_model_field = "{}_id".format(self._name.replace(".", "_"))
-                    rel_comodel_field = "{}_id".format(self._fields[field]._comodel_name.replace(".", "_"))
-                    rels_int = list(conn.db[rel_model_name].find({rel_model_field: {"$in": related_ids}}))
-                    rels_int_dict = {rel[rel_model_field]:rel[rel_comodel_field] for rel in rels_int}
+                    rel_model_name = "{}_{}_rel".format(self._name.replace(
+                        ".", "_"), self._fields[field]._comodel_name.replace(".", "_"))
+                    rel_model_field = "{}_id".format(
+                        self._name.replace(".", "_"))
+                    rel_comodel_field = "{}_id".format(
+                        self._fields[field]._comodel_name.replace(".", "_"))
+                    rels_int = list(conn.db[rel_model_name].find(
+                        {rel_model_field: {"$in": related_ids}}))
+                    rels_int_dict = {
+                        rel[rel_model_field]: rel[rel_comodel_field] for rel in rels_int}
                     rels_rep = list(conn.db[self._fields[field]._comodel_name].find(
                         {"_id": {"$in": [rel[rel_comodel_field] for rel in rels_int]}}, {represent: 1}))
-                    rels_rep_dict = {rel["_id"]:rel[represent] for rel in rels_rep}
+                    rels_rep_dict = {rel["_id"]: rel[represent]
+                                     for rel in rels_rep}
                     related_docs = dict()
                     for oid, rel_oid in rels_int_dict.items():
                         if oid not in related_docs:
                             related_docs[oid] = list()
-                        related_docs[oid].append((rel_oid, rels_rep_dict[rel_oid]))
+                        related_docs[oid].append(
+                            (rel_oid, rels_rep_dict[rel_oid]))
 
-                # Add relations to the caché dictionary                 
+                # Add relations to the caché dictionary
                 cache[field] = related_docs
 
         result = list()
@@ -276,6 +289,9 @@ class Model(metaclass=ModelMeta):
             for field_name, field in self._fields.items():
                 # If value is not present among vals
                 if field_name not in vals:
+                    # Skip x2many assignments
+                    if isinstance(field, One2many) or isinstance(field, Many2many):
+                        continue
                     # Check if field is marked as required
                     if field._required:
                         # Check for a default value

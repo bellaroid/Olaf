@@ -125,7 +125,10 @@ def test_read():
     tc1 = registry["test.models.comodel"].create({"name": "Test_01"})
     tc2 = registry["test.models.comodel"].create({"name": "Test_02"})
     tm1 = registry["test.models.model"].create(
-        {"name": "Test", "age": 10, "setnull_id": tc1._id, "onetomany_ids": ("replace", [tc1._id, tc2._id])})
+        {"name": "Test", "age": 10, "setnull_id": tc1._id}) 
+    # Perform x2many write in a separate operation
+    tm1.write({"onetomany_ids": ("replace", [tc1._id, tc2._id])})
+    tm1.write({"manytomany_ids": ("replace", [tc1._id, tc2._id])})
     read = tm1.read()
     assert(read[0]["name"] == "Test")
     assert(read[0]["age"] == 10)
@@ -134,6 +137,9 @@ def test_read():
     # Test One2many
     assert((tc1._id, tc1.name) in read[0]["onetomany_ids"])
     assert((tc2._id, tc2.name) in read[0]["onetomany_ids"])
+    # Test Many2many
+    assert((tc1._id, tc1.name) in read[0]["manytomany_ids"])
+    assert((tc2._id, tc2.name) in read[0]["manytomany_ids"])
 
 def test_model_finish():
     """ Clean previous tests """

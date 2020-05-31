@@ -49,7 +49,7 @@ class BaseField:
         else:
             count = instance.count()
             if count == 1:
-                attr = self.attr if self.attr != "id" else "_id"
+                attr = self.attr
                 instance._cursor.rewind()
                 item = instance._cursor.next()
             elif count == 0:
@@ -381,7 +381,8 @@ class Many2many(RelationalField):
         """ A patched version of the O2M __set__ descriptor.
         """
         if value is None:
-            return super().__set__(instance, value)
+            # Treat None assignment as clear
+            value = ("clear",)
 
         if not isinstance(value, tuple):
             if value == 'clear':
