@@ -1,19 +1,24 @@
 import json
+from bson import ObjectId
 from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers.json import JSONMixin
+from olaf import registry
 
 
 class Request(JSONMixin, WZRequest):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.json_module = json
 
 
 class Response(JSONMixin, WZResponse):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.json_module = json
+
+
+def OlafJSONEncoder(obj):
+    if isinstance(obj, ObjectId):
+        return str(obj)
 
 
 def dispatch(request):
@@ -31,7 +36,7 @@ def jsonrpc_dispatcher(request):
         data = request.get_json()
     except BadRequest:
         response.set_data(json.dumps({
-            "id": None,
+            "id": data["id"],
             "error": {
                 "code": -32700,
                 "message": "Parse error"
@@ -42,7 +47,7 @@ def jsonrpc_dispatcher(request):
 
     if not set(data).issubset({"id", "method", "params", "jsonrpc"}):
         response.set_data(json.dumps({
-            "id": None,
+            "id": data["id"],
             "error": {
                 "code": -32600,
                 "message": "Invalid Request"
@@ -52,8 +57,22 @@ def jsonrpc_dispatcher(request):
         return response
 
     if data["method"] == "call":
-        params = data["params"]
-        response.set_data(handle_call(params))
+        try:
+            result = handle_call(data)
+            response.set_data(json.dumps({
+                "id": data["id"],
+                "jsonrpc": "2.0", 
+                "result": result 
+            }, default=OlafJSONEncoder))
+        except Exception as e:
+            response.set_data(json.dumps({
+                "id": data["id"],
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": -32000,
+                    "message": str(e)
+                },
+        }))
     else:
         response.set_data(json.dumps({
             "id": data["id"],
@@ -66,6 +85,29 @@ def jsonrpc_dispatcher(request):
 
     return response
 
-def handle_call(request):
-    pass
 
+def handle_call(data):
+    """ 
+    Take an action according to params values
+    """
+
+    p = data["params"]
+    method = p["method"]
+    model = registry[p["model"]]
+
+    if method == "search":
+        query = p.get("query", {})
+        result = model.search(query).ids()
+    elif method == "read":
+        ids = p.get("ids", [])
+        fields = p.get("fields", [])
+        result = model.browse(ids).read(fields)
+    elif method == "count":
+        query = p.get("query", {})
+        result = model.search({}).count()
+    elif method == "search_read":
+        query = p.get("query", {})
+        fields = p.get("fields", [])
+        result = model.search(query).read(fields)
+
+    return result
