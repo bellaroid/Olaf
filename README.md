@@ -12,6 +12,7 @@ Its key features are (WIP):
 
 ## Requirements
 
+- Python 3 (3.6 or higher recommended)
 - MongoDB (default parameters in `olaf/db.py`)
 
 ## Setup
@@ -29,5 +30,10 @@ source venv/bin/activate
 
 And then install the dependencies like this:
 ```
-pip install -r requirements.txt
+pip3 install -r requirements.txt
+```
+
+That's it! Start the server by running:
+```
+python3 olaf-bin.py
 ```

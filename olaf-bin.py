@@ -2,10 +2,11 @@ import os
 import logging
 import time
 import colors
-from olaf.http import Request, Response, dispatch
+from olaf.http import Request, route
 from olaf.utils import initialize
 from werkzeug.middleware.shared_data import SharedDataMiddleware
 from werkzeug.serving import run_simple
+from werkzeug.routing import Map, Rule, NotFound, RequestRedirect
 
 
 logger = logging.getLogger("werkzeug")
@@ -13,14 +14,15 @@ logger = logging.getLogger("werkzeug")
 
 class Olaf(object):
 
-    @staticmethod
-    def dispatch_request(request):
-        response = dispatch(request)
-        return response
-
     def wsgi_app(self, environ, start_response):
+        url_map = route.url_map
         request = Request(environ)
-        response = self.dispatch_request(request)
+        urls = url_map.bind_to_environ(environ)
+        try:
+            endpoint, values = urls.match()
+            response = endpoint(request, **values)
+        except NotFound as e:
+            return e(environ, start_response)
         return response(environ, start_response)
 
     def __call__(self, environ, start_response):

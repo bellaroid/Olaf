@@ -1,0 +1,48 @@
+<html>
+
+<head>
+  <title>Olaf Framework</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.2/css/bulma.min.css">
+  <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+</head>
+
+<body>
+  <section class="hero is-success is-medium">
+    <div class="hero-body">
+      <div class="container">
+        <p class="title is-1">
+          Yay! <b>Olaf</b> is Up and Running
+        </p>
+        <p class="subtitle">
+          You've accessed this page at {{ now }}
+        </p>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="container">
+      <p>
+        You're seeing this because there's a python decorator
+        <code>@route.add("/")</code> wrapping around the <code>index</code>
+        function in the file <code>addons/base/controller/main.py</code>.
+      </p>
+      <p class="title is-4">
+        Feel free to modify it!
+      </p>
+      <h3 class="title is-3">
+        <!-- TODO: Add Documentation -->
+        Wanna know more about <b>Olaf</b>?
+      </h3>
+      <h4 class="title is-4">
+        Check out the <a href="https://olaf.bellaroid.com/docs">docs</a>!
+      </h4>
+    </div>
+  </section>
+  <footer class="footer">
+    <div class="content has-text-centered">
+      <p>Made with <span class="fa fa-heart"></span> at <a href="https://www.bellaroid.com">Bellaroid</a></p>
+    </div>
+  </footer>
+</body>
+
+</html>
