@@ -2,6 +2,7 @@ import os
 from pymongo import MongoClient, DESCENDING
 from pymongo.errors import ServerSelectionTimeoutError
 
+
 class ModelRegistryMeta(type):
     """ This class ensures there's always a single
     instance of the Model Registry class along the entire
@@ -50,7 +51,8 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
             attr = getattr(cls, attr_name)
             if attr_name == "_compound_indexes":
                 for tup_ind in attr:
-                    conn.db[cls._name].create_index([(ind, DESCENDING) for ind in tup_ind], unique=True)
+                    conn.db[cls._name].create_index(
+                        [(ind, DESCENDING) for ind in tup_ind], unique=True)
             if issubclass(attr.__class__, BaseField):
                 if attr._unique:
                     conn.db[cls._name].create_index(attr_name, unique=True)
@@ -77,12 +79,13 @@ class Connection(metaclass=ConnectionMeta):
     """ An instance of the Connection Client """
 
     def __init__(self):
-        database = os.getenv("MONGODB_NAME", "olaf")
-        pswd = os.getenv("MONGODB_PASS", None)
-        user = os.getenv("MONGODB_USER", None)
-        host = os.getenv("MONGODB_HOST", "localhost")
-        port = os.getenv("MONGODB_PORT", "27017")
-        tout = os.getenv("MONGODB_TIMEOUT", 2000)
+        from olaf.tools import config
+        database =  config.DB_NAME
+        pswd =      config.DB_PASS
+        user =      config.DB_USER
+        host =      config.DB_HOST
+        port =      config.DB_PORT
+        tout =      config.DB_TOUT
         if user and pswd:
             connstr = "mongodb://{}:{}@{}:{}/".format(user, pswd, host, port)
         elif not user and not pswd:
@@ -91,12 +94,12 @@ class Connection(metaclass=ConnectionMeta):
             raise ValueError("MongoDB user or password were not specified")
         # Create Client
         client = MongoClient(connstr, serverSelectionTimeoutMS=tout)
-        
+
         # Verify Connection
         try:
             client.server_info()
         except ServerSelectionTimeoutError as e:
             raise RuntimeError("Unable to connect to MongoDB: {}".format(e))
-    
+
         self.cl = client
         self.db = client[database]

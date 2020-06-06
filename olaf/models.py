@@ -208,7 +208,7 @@ class Model(metaclass=ModelMeta):
                     # Many2many Prefetch
                     related_ids = [item["_id"] for item in data]
                     rel_model_name = "{}_{}_rel".format(
-                        self._name.replace(".", "_"), 
+                        self._name.replace(".", "_"),
                         self._fields[field]._comodel_name.replace(".", "_"))
                     rel_model_field = "{}_id".format(
                         self._name.replace(".", "_"))

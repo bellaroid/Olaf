@@ -3,11 +3,13 @@ from olaf.db import ModelRegistry
 
 registry = ModelRegistry()
 
+
 class NoPersist:
     """ Allows performing field assignments
     without persisting changes into database,
     useful for performing validations.
     """
+
     def __init__(self, instance):
         self.instance = instance
 
@@ -16,6 +18,7 @@ class NoPersist:
 
     def __exit__(self, type, value, traceback):
         self.instance._implicit_save = True
+
 
 class BaseField:
     """ Base field with default initializations
@@ -175,6 +178,7 @@ class Many2one(RelationalField):
     """ Field Class for storing a representation of
     a record from a different collection or the same one
     """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._ondelete = kwargs.get("ondelete", "SET NULL")
@@ -371,7 +375,8 @@ class Many2many(RelationalField):
             model_dict["_name"] = rel_name
             model_dict[rel_fld_a_name] = rel_fld_a
             model_dict[rel_fld_b_name] = rel_fld_b
-            model_dict["_compound_indexes"] = [(rel_fld_a_name, rel_fld_b_name)]
+            model_dict["_compound_indexes"] = [
+                (rel_fld_a_name, rel_fld_b_name)]
             # Create metaclass
             mod = ModelMeta("Model", (), model_dict)
             registry.add(mod)

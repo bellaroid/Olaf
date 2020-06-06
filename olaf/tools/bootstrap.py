@@ -5,8 +5,6 @@ import importlib
 
 _logger = logging.getLogger(__name__)
 
-
-
 def initialize():
     """
     Olaf Bootstraping Function

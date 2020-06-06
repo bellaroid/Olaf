@@ -1,7 +1,7 @@
 import pytest
 import pymongo
 from olaf import db, registry, fields
-from olaf.utils import initialize
+from olaf.tools import initialize
 from olaf.models import Model
 
 
@@ -151,7 +151,7 @@ def test_o2m():
     modrec = tModel().create({"char_max_req": "o2mc_1"})
     rec.o2m = ('add', modrec._id)
     assert(rec.o2m.count() == 1)
-    
+
     # Clear
     rec.o2m = ('create', {"char_max_req": "o2mc_2"})
     rec.o2m = ('create', {"char_max_req": "o2mc_3"})
@@ -227,7 +227,7 @@ def test_m2m():
     # Uniqueness of the compound key
     with pytest.raises(pymongo.errors.DuplicateKeyError):
         rec.m2m = ('add', modrec._id)
-        
+
     with pytest.raises(pymongo.errors.DuplicateKeyError):
         rec.m2m = ('create', {"name": "m2m_6"})
 

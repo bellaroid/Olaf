@@ -1,7 +1,7 @@
 import pytest
 import bson
 from olaf import registry, models, fields, db
-from olaf.utils import initialize
+from olaf.tools import initialize
 from olaf.models import DeletionConstraintError
 
 
@@ -129,7 +129,7 @@ def test_read():
     tc1 = registry["test.models.comodel"].create({"name": "Test_01"})
     tc2 = registry["test.models.comodel"].create({"name": "Test_02"})
     tm1 = registry["test.models.model"].create(
-        {"name": "Test", "age": 10, "setnull_id": tc1._id}) 
+        {"name": "Test", "age": 10, "setnull_id": tc1._id})
     # Perform x2many write in a separate operation
     tm1.write({"onetomany_ids": ("replace", [tc1._id, tc2._id])})
     tm1.write({"manytomany_ids": ("replace", [tc1._id, tc2._id])})
@@ -146,6 +146,7 @@ def test_read():
     assert(len(read[0]["manytomany_ids"]) == 2)
     assert((tc1._id, tc1.name) in read[0]["manytomany_ids"])
     assert((tc2._id, tc2.name) in read[0]["manytomany_ids"])
+
 
 def test_model_finish():
     """ Clean previous tests """

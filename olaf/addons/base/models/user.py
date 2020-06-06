@@ -7,7 +7,7 @@ class User(models.Model):
 
     name =      fields.Char(required=True, max_length=255)
     email =     fields.Char(unique=True)
-    password =  fields.Char(exclude=True, setter="generate_password")
+    password =  fields.Char(exclude=True, required=True, setter="generate_password")
     age =       fields.Integer(required=True)
     group_id =  fields.Many2one("base.group")
     tag_ids =   fields.Many2many("base.user.tag")
@@ -27,7 +27,6 @@ class User(models.Model):
         return check_password_hash(self.password, plain_password)
 
     def generate_password(self, plain_password):
-        self.ensure_one()
         return generate_password_hash(plain_password)
 
 

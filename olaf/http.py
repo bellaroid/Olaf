@@ -8,15 +8,32 @@ from werkzeug.wrappers.json import JSONMixin
 from werkzeug.routing import Map, Rule
 from olaf import registry
 
-
 class Request(JSONMixin, WZRequest):
+    """ Standard Werkzeug Request with JSON Mixin """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
 class Response(JSONMixin, WZResponse):
+    """ Standard Werkzeug Response with JSON Mixin """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+
+class JsonResponse(Response):
+    """ This class is a shortcut for creating
+    a JSON response object out of a dictionary.
+    """
+
+    def __init__(self, *args, **kwargs):
+        if args[0] is not None:
+            list_args = list(args)
+            list_args[0] = json.dumps(args[0], default=OlafJSONEncoder)
+        elif "response" in kwargs:
+            kwargs["response"] = json.dumps(
+                kwargs["response"], default=OlafJSONEncoder)
+        kwargs["content_type"] = "application/json"
+        super().__init__(*list_args, **kwargs)
 
 
 class RouteMapMeta(type):
@@ -65,88 +82,3 @@ def render_template(relative_path, context):
 def OlafJSONEncoder(obj):
     if isinstance(obj, ObjectId):
         return str(obj)
-
-
-@route.add("/jsonrpc", methods=["POST"])
-def jsonrpc_dispatcher(request):
-    response = Response(content_type="application/json", status=200)
-
-    try:
-        data = request.get_json()
-    except BadRequest:
-        response.set_data(json.dumps({
-            "id": data["id"],
-            "error": {
-                "code": -32700,
-                "message": "Parse error"
-            },
-            "jsonrpc": "2.0"
-        }))
-        return response
-
-    if not set(data).issubset({"id", "method", "params", "jsonrpc"}):
-        response.set_data(json.dumps({
-            "id": data["id"],
-            "error": {
-                "code": -32600,
-                "message": "Invalid Request"
-            },
-            "jsonrpc": "2.0"
-        }))
-        return response
-
-    if data["method"] == "call":
-        try:
-            result = handle_call(data)
-            response.set_data(json.dumps({
-                "id": data["id"],
-                "jsonrpc": "2.0",
-                "result": result
-            }, default=OlafJSONEncoder))
-        except Exception as e:
-            response.set_data(json.dumps({
-                "id": data["id"],
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32000,
-                    "message": str(e)
-                },
-            }))
-    else:
-        response.set_data(json.dumps({
-            "id": data["id"],
-            "error": {
-                "code": -32601,
-                "message": "Method not found"
-            },
-            "jsonrpc": "2.0"
-        }))
-
-    return response
-
-
-def handle_call(data):
-    """ 
-    Take an action according to params values
-    """
-
-    p = data["params"]
-    method = p["method"]
-    model = registry[p["model"]]
-
-    if method == "search":
-        query = p.get("query", {})
-        result = model.search(query).ids()
-    elif method == "read":
-        ids = p.get("ids", [])
-        fields = p.get("fields", [])
-        result = model.browse(ids).read(fields)
-    elif method == "count":
-        query = p.get("query", {})
-        result = model.search({}).count()
-    elif method == "search_read":
-        query = p.get("query", {})
-        fields = p.get("fields", [])
-        result = model.search(query).read(fields)
-
-    return result
