@@ -93,13 +93,13 @@ class Model(metaclass=ModelMeta):
         except StopIteration:
             self._cursor.rewind()
             raise
-        return self.__class__({"_id": document["_id"]})
+        return self.__class__(self.env, {"_id": document["_id"]})
 
     def search(self, query):
         """ Return a new set of documents """
         cursor = conn.db[self._name].find(query, session=self.env.session)
         ids = [item["_id"] for item in cursor]
-        return self.__class__({"_id": {"$in": ids}})
+        return self.__class__(self.env, {"_id": {"$in": ids}})
 
     def browse(self, ids):
         """ Given a list of ObjectIds or strs representing
@@ -128,7 +128,7 @@ class Model(metaclass=ModelMeta):
                 "Expected list, str or ObjectId, "
                 "got {} instead".format(ids.__class__.__name__))
 
-        return self.__class__({"_id": {"$in": items}})
+        return self.__class__(self.env, {"_id": {"$in": items}})
 
     def count(self):
         """ Return the amount of documents in the current set """
@@ -144,7 +144,7 @@ class Model(metaclass=ModelMeta):
         self.validate(vals)
         new_id = conn.db[self._name].insert_one(self._buffer, session=self.env.session).inserted_id
         self._buffer.clear()
-        return self.__class__({"_id": new_id})
+        return self.__class__(self.env, {"_id": new_id})
 
     def write(self, vals):
         """ Write values to the documents in the current set"""

@@ -104,7 +104,6 @@ def handle_call(data, uid):
 
 
 def call_method(p, model, method):
-    import pdb; pdb.set_trace()
     if method == "search":
         query = p.get("query", {})
         result = model.search(query).ids()
