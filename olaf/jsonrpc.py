@@ -1,12 +1,15 @@
 from olaf import registry
+from olaf.db import Connection
 from olaf.http import Request, JsonResponse, route
+from olaf.tools import config
 from olaf.security import jwt_required
+from olaf.tools.environ import Environment
 from werkzeug.exceptions import BadRequest
+from werkzeug.local import Local
 
-
-@jwt_required
 @route.add("/jsonrpc", methods=["POST"])
-def jsonrpc_dispatcher(request):
+@jwt_required
+def jsonrpc_dispatcher(uid, request):
     """ 
     JSONRPC Dispatcher
 
@@ -43,20 +46,21 @@ def jsonrpc_dispatcher(request):
     # Handle CALL method
     if data["method"] == "call":
         try:
-            res = handle_call(data)
+            res = handle_call(data, uid)
             result = {
                 "id": data["id"],
                 "jsonrpc": "2.0",
                 "result": res
             }
         except Exception as e:
+            raise
             result = {
                 "id": data["id"],
                 "jsonrpc": "2.0",
                 "error": {
                     "code": -32000,
                     "message": str(e)
-                },
+                }
             }
     else:
         # Method not found
@@ -72,7 +76,7 @@ def jsonrpc_dispatcher(request):
     return JsonResponse(result)
 
 
-def handle_call(data):
+def handle_call(data, uid):
     """
     Take an action according to params values
     TODO: This is a provisory method until
@@ -81,8 +85,26 @@ def handle_call(data):
 
     p = data["params"]
     method = p["method"]
-    model = registry[p["model"]]
+    cls = registry[p["model"]]
 
+    conn = Connection()
+    client = conn.cl
+
+    if config.DB_RS_E:    
+        with client.start_session() as session:
+            with session.start_transaction():
+                env = Environment(uid, session)
+                model = cls(env)
+                result = call_method(p, model, method)
+    else:
+        env = Environment(uid)
+        model = cls(env)
+        result = call_method(p, model, method)
+    return result
+
+
+def call_method(p, model, method):
+    import pdb; pdb.set_trace()
     if method == "search":
         query = p.get("query", {})
         result = model.search(query).ids()

@@ -37,7 +37,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         """ Return an instance of the requested model class """
         if not key in self.__models__:
             raise KeyError("Model not found in registry")
-        return self.__models__[key]()
+        return self.__models__[key]
 
     def add(self, cls):
         """ Classes wrapped around this method
@@ -92,8 +92,17 @@ class Connection(metaclass=ConnectionMeta):
             connstr = "mongodb://{}:{}".format(host, port)
         else:
             raise ValueError("MongoDB user or password were not specified")
+        
         # Create Client
-        client = MongoClient(connstr, serverSelectionTimeoutMS=tout)
+        params = {
+            "serverSelectionTimeoutMS": tout
+        }
+
+        # Activate Replicaset
+        if config.DB_RS_E:
+            params["replicaset"] = config.DB_RSET
+        
+        client = MongoClient(connstr, **params)
 
         # Verify Connection
         try:

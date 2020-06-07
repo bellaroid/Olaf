@@ -44,7 +44,7 @@ class Model(metaclass=ModelMeta):
     # models and shouldn't be overridden
     _id = Identifier()
 
-    def __init__(self, query=None):
+    def __init__(self, environment, query=None):
         # Ensure _name attribute definition on child
         if (self._name is None):
             raise ValueError(
@@ -57,6 +57,7 @@ class Model(metaclass=ModelMeta):
             attr = getattr(cls, attr_name)
             if issubclass(attr.__class__, BaseField):
                 fields[attr_name] = attr
+        self.env = environment
         self._fields = fields
         # Set default query
         self._query = {"_id": "-1"}
@@ -64,7 +65,7 @@ class Model(metaclass=ModelMeta):
             self._query = query
         self._buffer = dict()
         self._implicit_save = True
-        self._cursor = conn.db[self._name].find(query)
+        self._cursor = conn.db[self._name].find(query, session=self.env.session)
 
     def __repr__(self):
         return "<DocSet {} - {} items>".format(self._name, self.count())
@@ -96,7 +97,7 @@ class Model(metaclass=ModelMeta):
 
     def search(self, query):
         """ Return a new set of documents """
-        cursor = conn.db[self._name].find(query)
+        cursor = conn.db[self._name].find(query, session=self.env.session)
         ids = [item["_id"] for item in cursor]
         return self.__class__({"_id": {"$in": ids}})
 
@@ -131,7 +132,7 @@ class Model(metaclass=ModelMeta):
 
     def count(self):
         """ Return the amount of documents in the current set """
-        return conn.db[self._name].count_documents(self._query)
+        return conn.db[self._name].count_documents(self._query, session=self.env.session)
 
     def create(self, vals):
         for field in vals.keys():
@@ -141,7 +142,7 @@ class Model(metaclass=ModelMeta):
                 raise ValueError(
                     "Cannot assign value to {} during creation".format(field))
         self.validate(vals)
-        new_id = conn.db[self._name].insert_one(self._buffer).inserted_id
+        new_id = conn.db[self._name].insert_one(self._buffer, session=self.env.session).inserted_id
         self._buffer.clear()
         return self.__class__({"_id": new_id})
 
@@ -174,7 +175,7 @@ class Model(metaclass=ModelMeta):
         # By calling the list constructor on a PyMongo cursor we retrieve all the records
         # in a single call. This is faster but may take lots of memory.
         data = list(conn.db[self._name].find(
-            self._query, {field: 1 for field in fields}))
+            self._query, {field: 1 for field in fields}, session=self.env.session))
         for field in fields:
             if issubclass(self._fields[field].__class__, RelationalField):
                 # Create a caché dict with the representation
@@ -185,7 +186,7 @@ class Model(metaclass=ModelMeta):
                     related_ids = [item[field]
                                    for item in data if item[field] is not None]
                     rels = list(conn.db[self._fields[field]._comodel_name].find(
-                        {"_id": {"$in": related_ids}}, {represent: 1}))
+                        {"_id": {"$in": related_ids}}, {represent: 1}, session=self.env.session))
                     related_docs = {rel["_id"]: (
                         rel["_id"], rel[represent]) for rel in rels}
                 elif isinstance(self._fields[field], One2many):
@@ -195,7 +196,8 @@ class Model(metaclass=ModelMeta):
                     # Retrieve all the records in the co-model for the current
                     # field that are related to any of the oids in the dataset
                     rels = list(conn.db[self._fields[field]._comodel_name].find(
-                        {inversed_by: {"$in": related_ids}}, {represent: 1, inversed_by: 1}))
+                        {inversed_by: {"$in": related_ids}}, {represent: 1, inversed_by: 1},
+                        session=self.env.session))
                     # Build dictionary with the model record oid as key
                     # and a list of tuples with its co-model relations as value.
                     related_docs = dict()
@@ -215,9 +217,10 @@ class Model(metaclass=ModelMeta):
                     rel_comodel_field = "{}_id".format(
                         self._fields[field]._comodel_name.replace(".", "_"))
                     rels_int = list(conn.db[rel_model_name].find(
-                        {rel_model_field: {"$in": related_ids}}))
+                        {rel_model_field: {"$in": related_ids}}, session=self.env.session))
                     rels_rep = list(conn.db[self._fields[field]._comodel_name].find(
-                        {"_id": {"$in": [rel[rel_comodel_field] for rel in rels_int]}}, {represent: 1}))
+                        {"_id": {"$in": [rel[rel_comodel_field] for rel in rels_int]}}, {represent: 1},
+                        session=self.env.session))
                     rels_rep_dict = {rel["_id"]: rel[represent]
                                      for rel in rels_rep}
                     rels_dict = dict()
@@ -281,7 +284,7 @@ class Model(metaclass=ModelMeta):
                 else:
                     raise ValueError(
                         "Invalid deletion constraint '{}'".format(cons))
-        outcome = conn.db[self._name].delete_many(self._query)
+        outcome = conn.db[self._name].delete_many(self._query, session=self.env.session)
         return outcome.deleted_count
 
     def _save(self):
@@ -289,7 +292,7 @@ class Model(metaclass=ModelMeta):
         """
         if len(self._buffer.items()) > 0:
             conn.db[self._name].update_many(
-                self._query, {"$set": self._buffer})
+                self._query, {"$set": self._buffer}, session=self.env.session)
             self._buffer.clear()
         return
 
