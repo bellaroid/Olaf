@@ -269,7 +269,7 @@ class Model(metaclass=ModelMeta):
         if self._name in registry.__deletion_constraints__:
             for constraint in registry.__deletion_constraints__[self._name]:
                 mod, fld, cons = constraint
-                related = registry[mod].search({fld: {"$in": self.ids()}})
+                related = self.env[mod].search({fld: {"$in": self.ids()}})
                 if cons == "RESTRICT":
                     if related.count() > 0:
                         raise DeletionConstraintError(

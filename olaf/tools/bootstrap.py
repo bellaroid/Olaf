@@ -3,7 +3,7 @@ import os
 import logging
 import importlib
 
-_logger = logging.getLogger(__name__)
+_logger = logging.getLogger("werkzeug")
 
 def initialize():
     """
@@ -29,6 +29,9 @@ def initialize():
                     registry.__deletion_constraints__[comodel] = list()
                 registry.__deletion_constraints__[comodel].append(
                     (model, attr_name, constraint))
+    # Ensure root user exists
+    ensure_root_user()
+
 
 
 def manifest_parser():
@@ -50,7 +53,9 @@ def manifest_parser():
                         "Parsing manifest file at {}".format(cur_dir))
                     manifest = yaml.safe_load(
                         open(os.path.join(cur_dir, file)))
-                    modules["olaf.addons.{}".format(_dir)] = manifest
+                    modules["olaf.addons.{}".format(_dir)] = {
+                        "manifest": manifest,
+                        "path": cur_dir}
     return modules
 
 
@@ -66,7 +71,8 @@ def toposort_modules(modules):
     R = set()       # Contains all relations between modules
 
     # Build a set of each module relation (directed graph)
-    for module_name, manifest in modules.items():
+    for module_name, data in modules.items():
+        manifest = data["manifest"]
         if len(manifest["depends"]) == 0:
             indeps.append(module_name)
         else:
@@ -91,3 +97,29 @@ def toposort_modules(modules):
             "Denpendency loop detected - Involved modules: {}".format(", ".join([r[1] for r in R])))
 
     return result
+
+
+def ensure_root_user():
+    """ Create root user if it doesn't exist,
+    or ensure its password matches the one
+    specified through the environment variables.
+    """
+    from olaf.tools import config
+    from olaf.db import Connection
+    from bson import ObjectId
+    from werkzeug.security import generate_password_hash
+
+    # Root user's ObjectId
+    oid = ObjectId(b"baseuserroot")
+    # Generate hashed password
+    passwd = generate_password_hash(config.ROOT_PASSWORD)
+
+    conn = Connection()
+    root = conn.db["base.user"].find_one({"_id": oid})
+
+    if not root:
+        # Create root user
+        conn.db["base.user"].insert_one({"_id": oid, "name": "Root", "email": "root", "password": passwd})
+    else:
+        # Update root user's password
+        conn.db["base.user"].update_one({"_id": oid}, {"$set": {"password": passwd}})

@@ -1,9 +1,16 @@
 import pytest
 import pymongo
+from bson import ObjectId
 from olaf import db, registry, fields
 from olaf.tools import initialize
 from olaf.models import Model
+from olaf.tools.environ import Environment
 
+initialize()
+
+uid = ObjectId(b"baseuserroot")
+env = Environment(uid)
+self = registry["base.user"](env, {"_id": uid})
 
 @registry.add
 class tModel(Model):
@@ -37,7 +44,7 @@ def test_field_assign():
     """ Multiple assignation tests
     """
     # Create two instances of the tModel object
-    tmod = tModel()
+    tmod = self.env["TestModel"]
     ts_a = tmod.create({"char_max_req": "trm_a"})
     ts_b = tmod.create({"char_max_req": "trm_b"})
     assert(tmod.count() == 0)  # tmod should remain as an empty set
@@ -59,7 +66,7 @@ def test_field_assign():
 def test_char_max_length():
     """ Attempt to overpass the maximum length of a Char field
     """
-    t = tModel()
+    t = self.env["TestModel"]
     with pytest.raises(ValueError):
         t.create({"char_max_req": "0123456789A"})
 
@@ -67,7 +74,7 @@ def test_char_max_length():
 def test_char_required():
     """ Attempt to create a document without a required field
     """
-    t = tModel()
+    t = self.env["TestModel"]
     with pytest.raises(ValueError):
         t.create({"integer": 32})  # Missing required char_max_req
 
@@ -75,7 +82,7 @@ def test_char_required():
 def test_integer():
     """ Attempt to set an integer value in different ways
     """
-    t = tModel()
+    t = self.env["TestModel"]
     with pytest.raises(ValueError):
         # Wrong integer
         t.create({"char_max_req": "0123456789", "integer": "Thirtytwo"})
@@ -91,8 +98,8 @@ def test_m2o():
     """ Create a record in a model and reference it
     from another 
     """
-    tmo = tModel()
-    cmo = tCoModel()
+    tmo = self.env["TestModel"]
+    cmo = self.env["TestCoModel"]
     c = cmo.create({"char": "chartest"})
     # Try assigning an ObjectID
     t = tmo.create({"char_max_req": "0123456789", "m2o": c._id})
@@ -117,7 +124,7 @@ def test_o2m():
     ('clear')           | Unlink all (like using (3,ID) for all linked records)
     ('replace', [OIDs]) | Replace the list of linked IDs (like using (5) then (4,ID) for each ID in the list of IDs)
     """
-    rec = tCoModel().create({"name": "O2M Test"})
+    rec = self.env["TestCoModel"].create({"name": "O2M Test"})
     assert(rec.o2m.count() == 0)
 
     # Create
@@ -131,7 +138,7 @@ def test_o2m():
     assert(rec.o2m.count() == 2)
 
     # Write
-    item = tModel().browse(recid)
+    item = self.env["TestModel"].browse(recid)
     assert(item.char_with_default == "Default")
     rec.o2m = ('write', recid, {"char_with_default": "Not Default"})
     assert(item.char_with_default == "Not Default")
@@ -148,7 +155,7 @@ def test_o2m():
     assert(rec.o2m.count() == 0)
 
     # Add
-    modrec = tModel().create({"char_max_req": "o2mc_1"})
+    modrec = self.env["TestModel"].create({"char_max_req": "o2mc_1"})
     rec.o2m = ('add', modrec._id)
     assert(rec.o2m.count() == 1)
 
@@ -161,7 +168,7 @@ def test_o2m():
     assert(rec.o2m.count() == 0)
 
     # Replace
-    recs = tModel().search({"char_max_req":  {'$regex': "o2mc_.*"}})
+    recs = self.env["TestModel"].search({"char_max_req":  {'$regex': "o2mc_.*"}})
     assert(recs.count() == 4)
     rec.o2m = ('create', {"char_max_req": "o2mc_5"})
     rec.o2m = ('create', {"char_max_req": "o2mc_6"})
@@ -173,7 +180,7 @@ def test_o2m():
 def test_m2m():
     """ Ensure m2m behaves like a o2m
     """
-    rec = tModel().create({"char_max_req": "m2m_1"})
+    rec = self.env["TestModel"].create({"char_max_req": "m2m_1"})
     assert(rec.m2m.count() == 0)
 
     # Create
@@ -187,7 +194,7 @@ def test_m2m():
     assert(rec.m2m.count() == 2)
 
     # Write
-    item = tTagModel().browse(recid)
+    item = self.env["TestTagModel"].browse(recid)
     rec.m2m = ('write', recid, {"name": "Ganja"})
     assert(item.name == "Ganja")
 
@@ -203,7 +210,7 @@ def test_m2m():
     assert(rec.m2m.count() == 0)
 
     # Add
-    modrec = tTagModel().create({"name": "m2m_1"})
+    modrec = self.env["TestTagModel"].create({"name": "m2m_1"})
     rec.m2m = ('add', modrec._id)
     assert(rec.m2m.count() == 1)
 
@@ -216,7 +223,7 @@ def test_m2m():
     assert(rec.m2m.count() == 0)
 
     # Replace
-    recs = tTagModel().search({"name":  {'$regex': "m2m_.*"}})
+    recs = self.env["TestTagModel"].search({"name":  {'$regex': "m2m_.*"}})
     assert(recs.count() == 4)
     rec.m2m = ('create', {"name": "m2m_5"})
     rec.m2m = ('create', {"name": "m2m_6"})
@@ -234,9 +241,9 @@ def test_m2m():
 
 def test_unicity():
     """ Make sure unique fields are unique """
-    tTagModel().create({"name": "test_tag_1"})
+    self.env["TestTagModel"].create({"name": "test_tag_1"})
     with pytest.raises(pymongo.errors.DuplicateKeyError):
-        tTagModel().create({"name": "test_tag_1"})
+        self.env["TestTagModel"].create({"name": "test_tag_1"})
 
 
 def test_finish():

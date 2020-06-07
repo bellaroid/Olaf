@@ -1,8 +1,4 @@
 import bson
-from olaf.db import ModelRegistry
-
-registry = ModelRegistry()
-
 
 class NoPersist:
     """ Allows performing field assignments
@@ -140,12 +136,12 @@ class RelationalField(BaseField):
         self._comodel_name = comodel_name
         self._represent = kwargs.get("represent", "name")
 
-    def _get_comodel(self):
+    def _get_comodel(self, instance):
         if self._comodel_name is None:
             raise ValueError("comodel_name not specified")
-        if self._comodel_name not in registry:
+        if self._comodel_name not in instance.env.registry:
             raise ValueError("comodel_name not found in registry")
-        return registry[self._comodel_name]
+        return instance.env[self._comodel_name]
 
     def _ensure_oid(self, value):
         """ Ensure the provided value is an ObjectId or a compatible string """
@@ -165,9 +161,9 @@ class RelationalField(BaseField):
                     "The supplied value '{}' is not a valid ObjectId".format(str(value)))
         return value
 
-    def _is_comodel_oid(self, oid):
+    def _is_comodel_oid(self, oid, instance):
         """ Ensure the provided oid exists in the co-model """
-        item = registry[self._comodel_name].browse(oid)
+        item = instance.env[self._comodel_name].browse(oid)
         if item.count() == 0:
             raise ValueError(
                 "The supplied ObjectId does not exist in the target model")
@@ -191,14 +187,14 @@ class Many2one(RelationalField):
         value = super().__get__(instance, owner)
         if value is None or not isinstance(value, bson.ObjectId):
             return value
-        cmod = self._get_comodel()
+        cmod = self._get_comodel(instance)
         return cmod.browse(value)
 
     def __set__(self, instance, value):
         if value is not None:
-            _ = self._get_comodel()
+            _ = self._get_comodel(instance)
             value = self._ensure_oid(value)
-            self._is_comodel_oid(value)
+            self._is_comodel_oid(value, instance)
         super().__set__(instance, value)
 
 
@@ -218,7 +214,7 @@ class One2many(RelationalField):
         if instance is None:
             return self
         instance.ensure_one()
-        cmod = self._get_comodel()
+        cmod = self._get_comodel(instance)
         if not hasattr(cmod, self._inversed_by):
             raise AttributeError(
                 "Inverse relation '{}' not found in model '{}'".format(
@@ -274,7 +270,7 @@ class One2many(RelationalField):
                         value[1].__class__.__name__))
             values = value[1]
             values[self._inversed_by] = instance._id
-            registry[self._comodel_name].create(values)
+            instance.env[self._comodel_name].create(values)
         elif value[0] == "write":
             # Update an existing record in the co-model
             # by assigning its 'inversed_by' field to this record.
@@ -282,7 +278,7 @@ class One2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many write assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
+            item = self._is_comodel_oid(oid, instance)
             if not isinstance(value[2], dict):
                 raise TypeError(
                     "Tuple argument #2 must be dict, got {} instead".format(
@@ -295,7 +291,7 @@ class One2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many purge assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
+            item = self._is_comodel_oid(oid, instance)
             item.unlink()
         elif value[0] == "remove":
             # Remove the reference to this record by clearing
@@ -304,7 +300,7 @@ class One2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many remove assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
+            item = self._is_comodel_oid(oid, instance)
             item.write({self._inversed_by: None})
         elif value[0] == "add":
             # Add a reference to this record by setting
@@ -313,14 +309,14 @@ class One2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many add assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
+            item = self._is_comodel_oid(oid, instance)
             item.write({self._inversed_by: instance._id})
         elif value[0] == "clear":
             # Set all the references to this record to None
             if len(value) != 1:
                 raise ValueError(
                     "Invalid tuple length for x2many clear assignment")
-            registry[self._comodel_name].search(
+            instance.env[self._comodel_name].search(
                 {self._inversed_by: instance._id}).write(
                     {self._inversed_by: None})
         elif value[0] == "replace":
@@ -333,7 +329,7 @@ class One2many(RelationalField):
                     "Tuple argument #2 must be list, got {} instead".format(
                         value[1].__class__.__name__))
 
-            comodel = self._get_comodel()
+            comodel = self._get_comodel(instance)
             comodel.search({self._inversed_by: instance._id}
                            ).write({self._inversed_by: None})
             comodel.browse(value[1]).write({self._inversed_by: instance._id})
@@ -351,7 +347,7 @@ class Many2many(RelationalField):
     def _ensure_intermediate_model(self, instance):
         """ Declare intermediate model exists 
         """
-        cmod = self._get_comodel()
+        cmod = self._get_comodel(instance)
         # Get names
         comodel_a_name = instance._name
         comodel_b_name = cmod._name
@@ -363,7 +359,7 @@ class Many2many(RelationalField):
         rel_fld_a_name = "{}_id".format(comodel_a_norm)
         rel_fld_b_name = "{}_id".format(comodel_b_norm)
 
-        if rel_name not in registry.__models__:
+        if rel_name not in instance.env.registry.__models__:
             # Import Model and ModelMeta
             from olaf.models import Model, ModelMeta
             # Create fields
@@ -379,7 +375,7 @@ class Many2many(RelationalField):
                 (rel_fld_a_name, rel_fld_b_name)]
             # Create metaclass
             mod = ModelMeta("Model", (), model_dict)
-            registry.add(mod)
+            instance.env.registry.add(mod)
 
         return rel_name, comodel_b_name, rel_fld_a_name, rel_fld_b_name
 
@@ -394,8 +390,8 @@ class Many2many(RelationalField):
         rel_name, comodel_b_name, rel_fld_a_name, rel_fld_b_name = self._ensure_intermediate_model(
             instance)
         # Perform search and browse
-        rels = registry[rel_name].search({rel_fld_a_name: instance._id})
-        return registry[comodel_b_name].browse([getattr(rel, rel_fld_b_name)._id for rel in rels])
+        rels = instance.env[rel_name].search({rel_fld_a_name: instance._id})
+        return instance.env[comodel_b_name].browse([getattr(rel, rel_fld_b_name)._id for rel in rels])
 
     def __set__(self, instance, value):
         """ A patched version of the O2M __set__ descriptor.
@@ -426,8 +422,8 @@ class Many2many(RelationalField):
                     "Tuple argument #2 must be dict, got {} instead".format(
                         value[1].__class__.__name__))
             values = value[1]
-            rec = registry[self._comodel_name].create(values)
-            registry[rel_name].create(
+            rec = instance.env[self._comodel_name].create(values)
+            instance.env[rel_name].create(
                 {rel_fld_a_name: instance._id, rel_fld_b_name: rec._id})
         elif value[0] == "write":
             # Update an existing record in the co-model
@@ -436,7 +432,7 @@ class Many2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many write assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
+            item = self._is_comodel_oid(oid, instance)
             if not isinstance(value[2], dict):
                 raise TypeError(
                     "Tuple argument #2 must be dict, got {} instead".format(
@@ -449,9 +445,9 @@ class Many2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many purge assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
+            item = self._is_comodel_oid(oid, instance)
             item.unlink()
-            registry[rel_name].search({rel_fld_b_name: oid}).unlink()
+            instance.env[rel_name].search({rel_fld_b_name: oid}).unlink()
         elif value[0] == "remove":
             # Remove the reference to this record by clearing
             # the 'inversed_by' field in the co-model record
@@ -459,8 +455,8 @@ class Many2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many remove assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
-            registry[rel_name].search({rel_fld_b_name: oid}).unlink()
+            item = self._is_comodel_oid(oid, instance)
+            instance.env[rel_name].search({rel_fld_b_name: oid}).unlink()
         elif value[0] == "add":
             # Add a reference to this record by setting
             # the 'inversed_by' field in the co-model record
@@ -468,15 +464,15 @@ class Many2many(RelationalField):
                 raise ValueError(
                     "Invalid tuple length for x2many add assignment")
             oid = self._ensure_oid(value[1])
-            item = self._is_comodel_oid(oid)
-            registry[rel_name].create(
+            item = self._is_comodel_oid(oid, instance)
+            instance.env[rel_name].create(
                 {rel_fld_a_name: instance._id, rel_fld_b_name: item._id})
         elif value[0] == "clear":
             # Set all the references to this record to None
             if len(value) != 1:
                 raise ValueError(
                     "Invalid tuple length for x2many clear assignment")
-            registry[rel_name].search({rel_fld_a_name: instance._id}).unlink()
+            instance.env[rel_name].search({rel_fld_a_name: instance._id}).unlink()
         elif value[0] == "replace":
             # Perform a clear and then add each element of the supplied list
             if len(value) != 2:
@@ -487,11 +483,11 @@ class Many2many(RelationalField):
                     "Tuple argument #2 must be list, got {} instead".format(
                         value[1].__class__.__name__))
 
-            registry[rel_name].search({rel_fld_a_name: instance._id}).unlink()
+            instance.env[rel_name].search({rel_fld_a_name: instance._id}).unlink()
             for oid in value[1]:
                 oid = self._ensure_oid(oid)
-                _ = self._is_comodel_oid(oid)
-                registry[rel_name].create(
+                _ = self._is_comodel_oid(oid, instance)
+                instance.env[rel_name].create(
                     {rel_fld_a_name: instance._id, rel_fld_b_name: oid})
         else:
             raise ValueError(

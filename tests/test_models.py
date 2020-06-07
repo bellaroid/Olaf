@@ -1,8 +1,16 @@
 import pytest
 import bson
-from olaf import registry, models, fields, db
+from bson import ObjectId
+from olaf import db, registry, fields, models
 from olaf.tools import initialize
-from olaf.models import DeletionConstraintError
+from olaf.models import Model, DeletionConstraintError
+from olaf.tools.environ import Environment
+
+initialize()
+
+uid = ObjectId(b"baseuserroot")
+env = Environment(uid)
+self = registry["base.user"](env, {"_id": uid})
 
 
 @registry.add
@@ -34,16 +42,16 @@ initialize()
 def test_unicity():
     """ Make sure two instances
     are not the same instance """
-    t_a = tModel()
-    t_b = tModel()
+    t_a = self.env["test.models.model"]
+    t_b = self.env["test.models.model"]
     assert(id(t_a) != id(t_b))
 
 
 def test_equality():
     """ Test DocSet comparison"""
-    t_a = tModel().create({"name": "Mr. Roboto"})
-    t_b = tModel().create({"name": "Mr. Roboto"})
-    t_c = tModel().search({"_id": t_a._id})
+    t_a = self.env["test.models.model"].create({"name": "Mr. Roboto"})
+    t_b = self.env["test.models.model"].create({"name": "Mr. Roboto"})
+    t_c = self.env["test.models.model"].search({"_id": t_a._id})
     # t_a and t_c contain the same document
     assert(t_a == t_c)
     # t_a and t_b have the same name but not same OID
@@ -55,7 +63,7 @@ def test_model_create():
     Make sure counters are correct and default values
     get assigned.
     """
-    t = tModel()
+    t = self.env["test.models.model"]
     ti = t.create({"name": "Mr. Roboto", "age": 32})
     assert(ti.count() == 1)
     assert(ti.name == "Mr. Roboto")
@@ -69,32 +77,32 @@ def test_model_create():
 
 def test_model_browse():
     # Test all possible singleton browse calls
-    tm1 = registry["test.models.model"].create({"name": "Test", "age": 10})
-    tm2 = registry["test.models.model"].browse(tm1._id)
-    tm3 = registry["test.models.model"].browse([tm1._id])
-    tm4 = registry["test.models.model"].browse(str(tm1._id))
-    tm5 = registry["test.models.model"].browse([str(tm1._id)])
+    tm1 = self.env["test.models.model"].create({"name": "Test", "age": 10})
+    tm2 = self.env["test.models.model"].browse(tm1._id)
+    tm3 = self.env["test.models.model"].browse([tm1._id])
+    tm4 = self.env["test.models.model"].browse(str(tm1._id))
+    tm5 = self.env["test.models.model"].browse([str(tm1._id)])
     assert(tm1._id == tm2._id == tm3._id == tm4._id == tm5._id)
     # Test browsing with list using OId and str
-    tma = registry["test.models.model"].create({"name": "Test_A", "age": 10})
-    tmb = registry["test.models.model"].create({"name": "Test_B", "age": 20})
-    tmc = registry["test.models.model"].browse([tma._id, str(tmb._id)])
+    tma = self.env["test.models.model"].create({"name": "Test_A", "age": 10})
+    tmb = self.env["test.models.model"].create({"name": "Test_B", "age": 20})
+    tmc = self.env["test.models.model"].browse([tma._id, str(tmb._id)])
     assert(tmc.count() == 2)
     # Browsing a non ObjectId string should fail
     with pytest.raises(bson.errors.InvalidId):
-        registry["test.models.model"].browse("123456789")
+        self.env["test.models.model"].browse("123456789")
     # Browsing a list with a non ObjectId string should fail
     with pytest.raises(bson.errors.InvalidId):
-        registry["test.models.model"].browse([tma._id, "123456789"])
+        self.env["test.models.model"].browse([tma._id, "123456789"])
     # Browsing something out of a list, str or OId should fail
     with pytest.raises(TypeError):
-        registry["test.models.model"].browse(23)
+        self.env["test.models.model"].browse(23)
 
 
 def test_delete_cascade():
     """ Verify Cascaded deletion """
-    tc1 = registry["test.models.comodel"].create({"name": "Test"})
-    tm1 = registry["test.models.model"].create(
+    tc1 = self.env["test.models.comodel"].create({"name": "Test"})
+    tm1 = self.env["test.models.model"].create(
         {"name": "Test", "age": 10, "cascade_id": tc1._id})
     assert(tm1.cascade_id._id == tc1._id)
     tc1.unlink()
@@ -103,8 +111,8 @@ def test_delete_cascade():
 
 def test_delete_restrict():
     """ Verify Restricted deletion """
-    tc1 = registry["test.models.comodel"].create({"name": "Test"})
-    tm1 = registry["test.models.model"].create(
+    tc1 = self.env["test.models.comodel"].create({"name": "Test"})
+    tm1 = self.env["test.models.model"].create(
         {"name": "Test", "age": 10, "restrict_id": tc1._id})
     assert(tm1.restrict_id._id == tc1._id)
     with pytest.raises(DeletionConstraintError):
@@ -116,8 +124,8 @@ def test_delete_restrict():
 
 def test_delete_set_null():
     """ Verify Set Null on deletion """
-    tc1 = registry["test.models.comodel"].create({"name": "Test"})
-    tm1 = registry["test.models.model"].create(
+    tc1 = self.env["test.models.comodel"].create({"name": "Test"})
+    tm1 = self.env["test.models.model"].create(
         {"name": "Test", "age": 10, "setnull_id": tc1._id})
     assert(tm1.setnull_id._id == tc1._id)
     tc1.unlink()
@@ -126,9 +134,9 @@ def test_delete_set_null():
 
 def test_read():
     """ Ensure read values are correct """
-    tc1 = registry["test.models.comodel"].create({"name": "Test_01"})
-    tc2 = registry["test.models.comodel"].create({"name": "Test_02"})
-    tm1 = registry["test.models.model"].create(
+    tc1 = self.env["test.models.comodel"].create({"name": "Test_01"})
+    tc2 = self.env["test.models.comodel"].create({"name": "Test_02"})
+    tm1 = self.env["test.models.model"].create(
         {"name": "Test", "age": 10, "setnull_id": tc1._id})
     # Perform x2many write in a separate operation
     tm1.write({"onetomany_ids": ("replace", [tc1._id, tc2._id])})

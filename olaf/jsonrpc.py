@@ -1,3 +1,4 @@
+import logging
 from olaf import registry
 from olaf.db import Connection
 from olaf.http import Request, JsonResponse, route
@@ -6,6 +7,8 @@ from olaf.security import jwt_required
 from olaf.tools.environ import Environment
 from werkzeug.exceptions import BadRequest
 from werkzeug.local import Local
+
+_logger = logging.getLogger(__name__)
 
 @route.add("/jsonrpc", methods=["POST"])
 @jwt_required
@@ -53,7 +56,7 @@ def jsonrpc_dispatcher(uid, request):
                 "result": res
             }
         except Exception as e:
-            raise
+            _logger.error("Exception during RPC Call: {}".format(str(e)))
             result = {
                 "id": data["id"],
                 "jsonrpc": "2.0",
@@ -90,7 +93,7 @@ def handle_call(data, uid):
     conn = Connection()
     client = conn.cl
 
-    if config.DB_RS_E:    
+    if config.DB_REPLICASET_ENABLE:    
         with client.start_session() as session:
             with session.start_transaction():
                 env = Environment(uid, session)

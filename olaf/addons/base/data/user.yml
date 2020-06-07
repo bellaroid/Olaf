@@ -1,5 +1,6 @@
-User:
+"base.user":
   -
-    email: admin@bellaroid.com.ar
+    _id:  baseuserroot
     name: Administrator
-    password: Bellaroid
+    email: olaf
+    password: olaf

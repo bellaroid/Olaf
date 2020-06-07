@@ -1,7 +1,6 @@
 import os
 import logging
 import time
-import colors
 from olaf.http import Request, route
 from olaf.tools import initialize
 from werkzeug.middleware.shared_data import SharedDataMiddleware
@@ -9,10 +8,6 @@ from werkzeug.serving import run_simple
 from werkzeug.routing import Map, Rule, NotFound, RequestRedirect
 from werkzeug.local import Local, LocalManager
 from frozendict import frozendict
-
-
-# Create Context Local
-
 
 class Olaf(object):
 

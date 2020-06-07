@@ -3,3 +3,4 @@ pycache/
 venv/
 .vscode/
 .idea/
+.env

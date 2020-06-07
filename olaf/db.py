@@ -99,8 +99,8 @@ class Connection(metaclass=ConnectionMeta):
         }
 
         # Activate Replicaset
-        if config.DB_RS_E:
-            params["replicaset"] = config.DB_RSET
+        if config.DB_REPLICASET_ENABLE:
+            params["replicaset"] = config.DB_REPLICASET_ID
         
         client = MongoClient(connstr, **params)
 

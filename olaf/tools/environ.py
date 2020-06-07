@@ -7,4 +7,13 @@ class Environment(object):
         self.session = session
         self.registry = registry
 
+    def __iter__(self):
+        return iter(self.registry)
+
+    def __getitem__(self, key):
+        """ Return an instance of the requested model class """
+        if not key in self.registry:
+            raise KeyError("Model not found in registry")
+        return self.registry[key](self)
+
 

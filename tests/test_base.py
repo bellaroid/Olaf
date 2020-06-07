@@ -1,16 +1,21 @@
 import pytest
+from bson import ObjectId
 from olaf import registry
 from olaf.tools import initialize
+from olaf.tools.environ import Environment
 
 initialize()
 
+uid = ObjectId(b"baseuserroot")
+env = Environment(uid)
+self = registry["base.user"](env, {"_id": uid})
 
 def test_password():
     """ Verify password assignment and decoding
     functions are working properly
     """
     # Create a new user
-    user = registry["base.user"].create({
+    user = self.create({
         "name": "Test User",
         "email": "test@email.com",
         "age": 100,

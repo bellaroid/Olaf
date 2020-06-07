@@ -5,4 +5,5 @@ pytest
 pyyaml
 pyjwt
 Jinja2
-frozendict
+python-dotenv
+git+https://github.com/Marco-Sulla/python-frozendict
