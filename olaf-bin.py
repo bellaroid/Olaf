@@ -1,11 +1,12 @@
 import os
 import time
 from olaf.http import Request, route
-from olaf.tools import initialize
+from olaf.tools import initialize, config
 from werkzeug.serving import run_simple
 from werkzeug.routing import NotFound
 from werkzeug.local import Local, LocalManager
 from frozendict import frozendict
+
 
 class Olaf(object):
 
@@ -14,7 +15,7 @@ class Olaf(object):
         url_map = route.url_map
         urls = url_map.bind_to_environ(env)
         local = Local()
-        local.request = request = Request(env) # pylint: disable=assigning-non-slot
+        local.request = request = Request(env)  # pylint: disable=assigning-non-slot
         try:
             endpoint, values = urls.match()
             response = endpoint(request, **values)
@@ -36,5 +37,7 @@ def create_app():
 if __name__ == '__main__':
     initialize()
     app = create_app()
-    run_simple('127.0.0.1', 5000, app, use_debugger=False,
-               use_reloader=True, passthrough_errors=True)
+    debug = config.APP_DEBUG
+    reloader = config.APP_RELOAD
+    run_simple('127.0.0.1', 5000, app, use_debugger=debug,
+               use_reloader=reloader, passthrough_errors=True)

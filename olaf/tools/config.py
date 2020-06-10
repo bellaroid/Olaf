@@ -1,5 +1,4 @@
 import os
-from dotenv import load_dotenv
 
 class Setting(object):
     """ An object that stores a read-only value
@@ -30,6 +29,8 @@ class Config:
     the whole application environment.
     """
     APP_URL =              Setting("str",   os.environ.get("APP_URL", "http://localhost:5000"))
+    APP_DEBUG =            Setting("bool",  os.environ.get("APP_DEBUG", True))
+    APP_RELOAD =           Setting("bool",  os.environ.get("APP_RELOAD", True))
     SECRET_KEY =           Setting("str",   os.getenv("SECRET_KEY", "SoMeThInGrEaLlYhArDtOgUeSs"))
     DB_NAME =              Setting("str",   os.getenv("MONGODB_NAME", "olaf"))
     DB_PASS =              Setting("str",   os.getenv("MONGODB_PASS", None))
@@ -42,5 +43,4 @@ class Config:
     JWT_EXPIRATION_TIME =  Setting("int",   os.getenv("JWT_EXPIRATION_TIME", 2000))
     ROOT_PASSWORD =        Setting("str",   os.getenv("ROOT_PASSWORD", "olaf"))
 
-load_dotenv()
 config = Config
