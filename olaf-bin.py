@@ -1,11 +1,9 @@
 import os
-import logging
 import time
 from olaf.http import Request, route
 from olaf.tools import initialize
-from werkzeug.middleware.shared_data import SharedDataMiddleware
 from werkzeug.serving import run_simple
-from werkzeug.routing import Map, Rule, NotFound, RequestRedirect
+from werkzeug.routing import NotFound
 from werkzeug.local import Local, LocalManager
 from frozendict import frozendict
 
@@ -38,5 +36,5 @@ def create_app():
 if __name__ == '__main__':
     initialize()
     app = create_app()
-    run_simple('127.0.0.1', 5000, app, use_debugger=True,
+    run_simple('127.0.0.1', 5000, app, use_debugger=False,
                use_reloader=True, passthrough_errors=True)

@@ -1,7 +1,10 @@
 import os
+import logging
+import click
 from pymongo import MongoClient, DESCENDING
 from pymongo.errors import ServerSelectionTimeoutError
 
+logger = logging.getLogger(__name__)
 
 class ModelRegistryMeta(type):
     """ This class ensures there's always a single
@@ -79,6 +82,8 @@ class Connection(metaclass=ConnectionMeta):
     """ An instance of the Connection Client """
 
     def __init__(self):
+        color = click.style
+        logger.info("Initializing {} Connection".format(color("MongoDB", fg="white", bold=True)))
         from olaf.tools import config
         database =  config.DB_NAME
         pswd =      config.DB_PASS
@@ -101,6 +106,8 @@ class Connection(metaclass=ConnectionMeta):
         # Activate Replicaset
         if config.DB_REPLICASET_ENABLE:
             params["replicaset"] = config.DB_REPLICASET_ID
+        else:
+            logger.warning("REPLICASET DISABLED. Database transactions are off.")
         
         client = MongoClient(connstr, **params)
 

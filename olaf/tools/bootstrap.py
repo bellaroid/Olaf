@@ -2,8 +2,9 @@ import yaml
 import os
 import logging
 import importlib
+import click
 
-_logger = logging.getLogger("werkzeug")
+logger = logging.getLogger(__name__)
 
 def initialize():
     """
@@ -11,8 +12,13 @@ def initialize():
     """
     # TODO: Shouldn't all of this be in the registry?
     # Read All Modules
+    color = click.style
+    logger.info(color("Initalizing OLAF", fg="white", bold=True))
+    # Ensure root user exists
+    ensure_root_user()
     modules = manifest_parser()
     sorted_modules = toposort_modules(modules)
+    logger.info("Importing Modules")
     for module_name in sorted_modules:
         importlib.import_module(module_name)
     # At this point, all model classes should be loaded in the registry
@@ -29,15 +35,14 @@ def initialize():
                     registry.__deletion_constraints__[comodel] = list()
                 registry.__deletion_constraints__[comodel].append(
                     (model, attr_name, constraint))
-    # Ensure root user exists
-    ensure_root_user()
-
+    logger.info("System Ready!")
 
 
 def manifest_parser():
     """
     Parses all manifests files
     """
+    logger.info("Parsing Manifests")
 
     file_name = "manifest.yml"
     mod_dir = os.path.join(os.path.dirname(
@@ -49,8 +54,8 @@ def manifest_parser():
             for file in os.listdir(os.path.join(root, _dir)):
                 if file == file_name:
                     cur_dir = os.path.join(root, _dir)
-                    _logger.debug(
-                        "Parsing manifest file at {}".format(cur_dir))
+                    logger.debug(
+                        "Parsing Manifest File at {}".format(cur_dir))
                     manifest = yaml.safe_load(
                         open(os.path.join(cur_dir, file)))
                     modules["olaf.addons.{}".format(_dir)] = {
@@ -66,6 +71,8 @@ def toposort_modules(modules):
     return list of modules sorted according to their 
     dependency on each other.
     """
+    logger.info("Building Dependency Tree")
+
     result = list()  # Contains sorted modules for installation
     indeps = list()  # Contains independent modules
     R = set()       # Contains all relations between modules
@@ -119,7 +126,9 @@ def ensure_root_user():
 
     if not root:
         # Create root user
+        logger.warning("Root user is not present, creating...")
         conn.db["base.user"].insert_one({"_id": oid, "name": "Root", "email": "root", "password": passwd})
     else:
         # Update root user's password
+        logger.info("Overwriting root user password")
         conn.db["base.user"].update_one({"_id": oid}, {"$set": {"password": passwd}})
