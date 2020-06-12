@@ -20,7 +20,7 @@ class tModel(Model):
     char_with_default = fields.Char(default="Default")
     integer = fields.Integer()
     m2o = fields.Many2one("TestCoModel")
-    m2m = fields.Many2many("TestTagModel")
+    m2m = fields.Many2many("TestTagModel", relation="test.model.tag.rel", field_a="a_oid", field_b="b_oid")
 
 
 @registry.add
@@ -252,4 +252,4 @@ def test_finish():
     conn.db["TestModel"].drop()
     conn.db["TestCoModel"].drop()
     conn.db["TestTagModel"].drop()
-    conn.db["TestModel_TestTagModel_rel"].drop()
+    conn.db["test.model.tag.rel"].drop()

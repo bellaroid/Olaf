@@ -140,7 +140,7 @@ class RelationalField(BaseField):
         if self._comodel_name is None:
             raise ValueError("comodel_name not specified")
         if self._comodel_name not in instance.env.registry:
-            raise ValueError("comodel_name not found in registry")
+            raise ValueError("comodel_name '{}' not found in registry".format(self._comodel_name))
         return instance.env[self._comodel_name]
 
     def _ensure_oid(self, value):
@@ -343,41 +343,35 @@ class Many2many(RelationalField):
     model with two Many2one fields, each one pointing to one of the
     involved models, resulting in a One2many field in  ends.
     """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._relation  = kwargs.get("relation")
+        self._field_a   = kwargs.get("field_a")
+        self._field_b   = kwargs.get("field_b")
+        self._string    = kwargs.get("string")
 
     def _ensure_intermediate_model(self, instance):
         """ Declare intermediate model exists 
         """
-        cmod = self._get_comodel(instance)
-        # Get names
-        comodel_a_name = instance._name
-        comodel_b_name = cmod._name
-        # Get normalized names
-        comodel_a_norm = comodel_a_name.replace(".", "_")
-        comodel_b_norm = comodel_b_name.replace(".", "_")
-        rel_name = "{}_{}_rel".format(comodel_a_norm, comodel_b_norm)
-        # Compose field names
-        rel_fld_a_name = "{}_id".format(comodel_a_norm)
-        rel_fld_b_name = "{}_id".format(comodel_b_norm)
 
-        if rel_name not in instance.env.registry.__models__:
+        if self._relation not in instance.env.registry.__models__:
             # Import Model and ModelMeta
             from olaf.models import Model, ModelMeta
             # Create fields
-            rel_fld_a = Many2one(comodel_a_name, required=True)
-            rel_fld_b = Many2one(comodel_b_name, required=True)
+            rel_fld_a = Many2one(instance._name, required=True)
+            rel_fld_b = Many2one(self._comodel_name, required=True)
             # Extract __dict__ (all Model's attributes, methods and descriptors)
             model_dict = dict(Model.__dict__)
             # Inject name and fields
-            model_dict["_name"] = rel_name
-            model_dict[rel_fld_a_name] = rel_fld_a
-            model_dict[rel_fld_b_name] = rel_fld_b
+            model_dict["_name"] = self._relation
+            model_dict[self._field_a] = rel_fld_a
+            model_dict[self._field_b] = rel_fld_b
             model_dict["_compound_indexes"] = [
-                (rel_fld_a_name, rel_fld_b_name)]
+                (self._field_a, self._field_b)]
             # Create metaclass
             mod = ModelMeta("Model", (), model_dict)
             instance.env.registry.add(mod)
 
-        return rel_name, comodel_b_name, rel_fld_a_name, rel_fld_b_name
 
     def __get__(self, instance, owner):
         """ Search for relationships in the intermediate model
@@ -387,11 +381,11 @@ class Many2many(RelationalField):
         if instance is None:
             return self
         instance.ensure_one()
-        rel_name, comodel_b_name, rel_fld_a_name, rel_fld_b_name = self._ensure_intermediate_model(
-            instance)
+        self._ensure_intermediate_model(instance)
         # Perform search and browse
-        rels = instance.env[rel_name].search({rel_fld_a_name: instance._id})
-        return instance.env[comodel_b_name].browse([getattr(rel, rel_fld_b_name)._id for rel in rels])
+        rels = instance.env[self._relation].search({self._field_a: instance._id})
+        return instance.env[self._comodel_name].browse(
+            [getattr(rel, self._field_b)._id for rel in rels])
 
     def __set__(self, instance, value):
         """ A patched version of the O2M __set__ descriptor.
@@ -409,8 +403,8 @@ class Many2many(RelationalField):
                     "Many2many field assignments must be done through tuple syntax. "
                     "Check the documentation for further details.")
 
-        rel_name, _, rel_fld_a_name, rel_fld_b_name = self._ensure_intermediate_model(
-            instance)
+        # Create intermediate model if not present
+        self._ensure_intermediate_model(instance)
 
         if value[0] == "create":
             # Create a new record in the co-model and add virtual relationship
@@ -423,8 +417,8 @@ class Many2many(RelationalField):
                         value[1].__class__.__name__))
             values = value[1]
             rec = instance.env[self._comodel_name].create(values)
-            instance.env[rel_name].create(
-                {rel_fld_a_name: instance._id, rel_fld_b_name: rec._id})
+            instance.env[self._relation].create(
+                {self._field_a: instance._id, self._field_b: rec._id})
         elif value[0] == "write":
             # Update an existing record in the co-model
             # by assigning its 'inversed_by' field to this record.
@@ -447,7 +441,7 @@ class Many2many(RelationalField):
             oid = self._ensure_oid(value[1])
             item = self._is_comodel_oid(oid, instance)
             item.unlink()
-            instance.env[rel_name].search({rel_fld_b_name: oid}).unlink()
+            instance.env[self._relation].search({self._field_b: oid}).unlink()
         elif value[0] == "remove":
             # Remove the reference to this record by clearing
             # the 'inversed_by' field in the co-model record
@@ -456,7 +450,7 @@ class Many2many(RelationalField):
                     "Invalid tuple length for x2many remove assignment")
             oid = self._ensure_oid(value[1])
             item = self._is_comodel_oid(oid, instance)
-            instance.env[rel_name].search({rel_fld_b_name: oid}).unlink()
+            instance.env[self._relation].search({self._field_b: oid}).unlink()
         elif value[0] == "add":
             # Add a reference to this record by setting
             # the 'inversed_by' field in the co-model record
@@ -465,14 +459,14 @@ class Many2many(RelationalField):
                     "Invalid tuple length for x2many add assignment")
             oid = self._ensure_oid(value[1])
             item = self._is_comodel_oid(oid, instance)
-            instance.env[rel_name].create(
-                {rel_fld_a_name: instance._id, rel_fld_b_name: item._id})
+            instance.env[self._relation].create(
+                {self._field_a: instance._id, self._field_b: item._id})
         elif value[0] == "clear":
             # Set all the references to this record to None
             if len(value) != 1:
                 raise ValueError(
                     "Invalid tuple length for x2many clear assignment")
-            instance.env[rel_name].search({rel_fld_a_name: instance._id}).unlink()
+            instance.env[self._relation].search({self._field_a: instance._id}).unlink()
         elif value[0] == "replace":
             # Perform a clear and then add each element of the supplied list
             if len(value) != 2:
@@ -483,12 +477,12 @@ class Many2many(RelationalField):
                     "Tuple argument #2 must be list, got {} instead".format(
                         value[1].__class__.__name__))
 
-            instance.env[rel_name].search({rel_fld_a_name: instance._id}).unlink()
+            instance.env[self._relation].search({self._field_a: instance._id}).unlink()
             for oid in value[1]:
                 oid = self._ensure_oid(oid)
                 _ = self._is_comodel_oid(oid, instance)
-                instance.env[rel_name].create(
-                    {rel_fld_a_name: instance._id, rel_fld_b_name: oid})
+                instance.env[self._relation].create(
+                    {self._field_a: instance._id, self._field_b: oid})
         else:
             raise ValueError(
                 "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")

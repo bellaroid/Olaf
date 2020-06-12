@@ -24,7 +24,7 @@ class tModel(models.Model):
     restrict_id = fields.Many2one("test.models.comodel", ondelete="RESTRICT")
     setnull_id = fields.Many2one("test.models.comodel", ondelete="SET NULL")
     onetomany_ids = fields.One2many("test.models.comodel", "inverse_id")
-    manytomany_ids = fields.Many2many("test.models.comodel")
+    manytomany_ids = fields.Many2many("test.models.comodel", relation="test.model.comodel.rel", field_a="a_oid", field_b="b_oid")
 
 
 @registry.add
@@ -161,3 +161,4 @@ def test_model_finish():
     conn = db.Connection()
     conn.db["test.models.model"].drop()
     conn.db["test.models.comodel"].drop()
+    conn.db["test.model.comodel.rel"].drop()

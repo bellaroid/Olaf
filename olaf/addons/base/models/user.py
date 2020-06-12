@@ -8,7 +8,7 @@ class User(models.Model):
     name =      fields.Char(required=True, max_length=255)
     email =     fields.Char(unique=True)
     password =  fields.Char(exclude=True, required=True, setter="generate_password")
-    group_ids = fields.Many2many("base.group")
+    group_ids = fields.Many2many("base.group", relation="base.user.group.rel", field_a="user_oid", field_b="group_oid")
 
     def say_my_name(self):
         for rec in self:

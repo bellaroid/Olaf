@@ -209,26 +209,22 @@ class Model(metaclass=ModelMeta):
                 elif isinstance(self._fields[field], Many2many):
                     # Many2many Prefetch
                     related_ids = [item["_id"] for item in data]
-                    rel_model_name = "{}_{}_rel".format(
-                        self._name.replace(".", "_"),
-                        self._fields[field]._comodel_name.replace(".", "_"))
-                    rel_model_field = "{}_id".format(
-                        self._name.replace(".", "_"))
-                    rel_comodel_field = "{}_id".format(
-                        self._fields[field]._comodel_name.replace(".", "_"))
+                    rel_model_name = self._fields[field]._relation
+                    field_a = self._fields[field]._field_a
+                    field_b = self._fields[field]._field_b
                     rels_int = list(conn.db[rel_model_name].find(
-                        {rel_model_field: {"$in": related_ids}}, session=self.env.session))
+                        {field_a: {"$in": related_ids}}, session=self.env.session))
                     rels_rep = list(conn.db[self._fields[field]._comodel_name].find(
-                        {"_id": {"$in": [rel[rel_comodel_field] for rel in rels_int]}}, {represent: 1},
+                        {"_id": {"$in": [rel[field_b] for rel in rels_int]}}, {represent: 1},
                         session=self.env.session))
                     rels_rep_dict = {rel["_id"]: rel[represent]
                                      for rel in rels_rep}
                     rels_dict = dict()
                     for rel in rels_int:
-                        if rel[rel_model_field] not in rels_dict:
-                            rels_dict[rel[rel_model_field]] = list()
-                        rels_dict[rel[rel_model_field]].append(
-                            rel[rel_comodel_field])
+                        if rel[field_a] not in rels_dict:
+                            rels_dict[rel[field_a]] = list()
+                        rels_dict[rel[field_a]].append(
+                            rel[field_b])
 
                     related_docs = dict()
                     for oid, rels in rels_dict.items():
