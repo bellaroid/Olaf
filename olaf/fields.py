@@ -38,6 +38,8 @@ class BaseField:
         # Custom setter function allows overriding default behaviour
         if "setter" in kwargs:
             self._setter = kwargs["setter"]
+        # For now set string for keyword args
+        self._string = kwargs.get("string", self.attr)
 
     def __set__(self, instance, value):
         if value is None and self._required:
@@ -205,7 +207,7 @@ class One2many(RelationalField):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        inversed_by = (args[1:2] or (None,))[0]
+        inversed_by = (args[1:2] or (None,))[0] or kwargs["inversed_by"]
         if inversed_by is None:
             raise ValueError("inversed_by not specified")
         self._inversed_by = inversed_by
@@ -345,10 +347,9 @@ class Many2many(RelationalField):
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._relation  = kwargs.get("relation")
-        self._field_a   = kwargs.get("field_a")
-        self._field_b   = kwargs.get("field_b")
-        self._string    = kwargs.get("string")
+        self._relation  = (args[1:2] or (None,))[0] or kwargs["relation"]
+        self._field_a   = (args[2:3] or (None,))[0] or kwargs["field_a"]
+        self._field_b   = (args[3:4] or (None,))[0] or kwargs["field_b"]
 
     def _ensure_intermediate_model(self, instance):
         """ Declare intermediate model exists 
