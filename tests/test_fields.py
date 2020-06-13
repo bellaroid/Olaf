@@ -24,6 +24,7 @@ class tModel(Model):
     m2m = fields.Many2many(
         "TestTagModel", relation="test.model.tag.rel", field_a="a_oid", field_b="b_oid")
     boolean = fields.Boolean()
+    date_time = fields.DateTime()
 
 
 @registry.add
@@ -98,7 +99,7 @@ def test_integer():
 
 
 def test_boolean():
-    """ Attempt to set an boolean value in different ways
+    """ Attempt to set a boolean value in different ways
     """
     t = self.env["TestModel"]
     # Set True
@@ -116,6 +117,24 @@ def test_boolean():
     ti.write({"boolean": None})
     assert(ti.boolean is None)
 
+
+def test_datetime():
+    """ Attempt to set a datetime value in different ways
+    """
+    import datetime
+    t = self.env["TestModel"]
+    # BSON can't handle microseconds, so we round up our date to milliseconds
+    now = datetime.datetime.now().replace(microsecond=0)
+    ti = t.create({"char_max_req": "testdtime", "date_time": now })
+    assert(ti.date_time == now)
+    datetime_str = "01/02/1988 06:00:00"
+    birthdate = datetime.datetime.strptime(datetime_str, '%d/%m/%Y %H:%M:%S')
+    ti.write({"date_time": "1988-02-01 06:00:00"})
+    assert(ti.date_time == birthdate)
+    # ISO 8601 extended format
+    ti.write({"date_time": "1988-02-01T06:00:00.000000"})
+    assert(ti.date_time == birthdate)
+    
 
 def test_m2o():
     """ Create a record in a model and reference it

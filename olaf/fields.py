@@ -1,4 +1,5 @@
 import bson
+import datetime
 
 class NoPersist:
     """ Allows performing field assignments
@@ -139,6 +140,19 @@ class Boolean(BaseField):
                         "Cannot convert '{}' to boolean".format(str(value)))
         super().__set__(instance, value)
 
+
+class DateTime(BaseField):
+    """ Field Class for storing datetime values
+    """
+    def __set__(self, instance, value):
+        if value is not None:
+            if not isinstance(value, datetime.datetime):
+                try:
+                    value = datetime.datetime.fromisoformat(value)
+                except ValueError:
+                    raise ValueError(
+                        "Cannot convert '{}' to datetime".format(str(value)))
+        super().__set__(instance, value)
 
 class RelationalField(BaseField):
     """ Provides a set of common utilities
