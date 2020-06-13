@@ -3,8 +3,10 @@ import os
 import logging
 import importlib
 import click
+import sys
 
 logger = logging.getLogger(__name__)
+file_name = "manifest.yml"
 
 def initialize():
     """
@@ -13,14 +15,18 @@ def initialize():
     # TODO: Shouldn't all of this be in the registry?
     # Read All Modules
     color = click.style
-    logger.info(color("Initalizing OLAF", fg="white", bold=True))
+    logger.info(color(" *** Initializing Olaf *** ", fg="black", bg="green", bold=True))
     # Ensure root user exists
     ensure_root_user()
     modules = manifest_parser()
     sorted_modules = toposort_modules(modules)
     logger.info("Importing Modules")
     for module_name in sorted_modules:
-        importlib.import_module(module_name)
+        if modules[module_name]["base"]:
+            importlib.import_module("olaf.addons.{}".format(module_name))
+        else:
+            sys.path.append(modules[module_name]["path"])
+            importlib.import_module(module_name)
     # At this point, all model classes should be loaded in the registry
     from olaf import registry
     from olaf.fields import Many2one
@@ -35,33 +41,53 @@ def initialize():
                     registry.__deletion_constraints__[comodel] = list()
                 registry.__deletion_constraints__[comodel].append(
                     (model, attr_name, constraint))
-    logger.info("System Ready!")
+    logger.info(color("System Ready", fg="white", bold=True))
 
 
 def manifest_parser():
     """
-    Parses all manifests files
+    Parses all manifest files in the base dir,
+    then all manifest files in the extra addons
+    dirs passed by the EXTRA_ADDONS setting.
     """
     logger.info("Parsing Manifests")
 
-    file_name = "manifest.yml"
-    mod_dir = os.path.join(os.path.dirname(
-        os.path.abspath("olaf.py")), "olaf/addons")
     modules = dict()
+    # Search for modules in olaf/addons first
+    base_dir = os.path.join(os.path.dirname(
+        os.path.abspath("olaf.py")), "olaf/addons")
+    
+    scan_addons_dir(base_dir, modules, base=True)
 
-    for root, dirs, _ in os.walk(mod_dir):
+    # Search for modules in each EXTRA_ADDONS folder
+    from . import config
+    extra_addons_dirs = config.EXTRA_ADDONS.split(",")
+    for extra_addons_dir in extra_addons_dirs:
+        scan_addons_dir(extra_addons_dir, modules)
+
+    return modules
+
+def scan_addons_dir(addons_dir, modules_dict, base=False):
+    """
+    Search for manifest files in the root of
+    each directory inside the provided addons directory.
+    If a manifest file is found, load its contents into the
+    provided dictionary.
+    """
+    for root, dirs, _ in os.walk(addons_dir):
         for _dir in dirs:
+            path = os.path.basename(_dir)
             for file in os.listdir(os.path.join(root, _dir)):
                 if file == file_name:
-                    cur_dir = os.path.join(root, _dir)
+                    cur_dir = os.path.join(root, _dir) # Absolute path to directory
                     logger.debug(
                         "Parsing Manifest File at {}".format(cur_dir))
                     manifest = yaml.safe_load(
                         open(os.path.join(cur_dir, file)))
-                    modules["olaf.addons.{}".format(_dir)] = {
+                    modules_dict[path] = {
                         "manifest": manifest,
-                        "path": cur_dir}
-    return modules
+                        "path": addons_dir,
+                        "base": base}
 
 
 def toposort_modules(modules):
@@ -75,7 +101,7 @@ def toposort_modules(modules):
 
     result = list()  # Contains sorted modules for installation
     indeps = list()  # Contains independent modules
-    R = set()       # Contains all relations between modules
+    R = set()        # Contains all relations between modules
 
     # Build a set of each module relation (directed graph)
     for module_name, data in modules.items():
