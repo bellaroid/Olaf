@@ -12,6 +12,7 @@ uid = ObjectId(b"baseuserroot")
 env = Environment(uid)
 self = registry["base.user"](env, {"_id": uid})
 
+
 @registry.add
 class tModel(Model):
     _name = "TestModel"
@@ -20,7 +21,9 @@ class tModel(Model):
     char_with_default = fields.Char(default="Default")
     integer = fields.Integer()
     m2o = fields.Many2one("TestCoModel")
-    m2m = fields.Many2many("TestTagModel", relation="test.model.tag.rel", field_a="a_oid", field_b="b_oid")
+    m2m = fields.Many2many(
+        "TestTagModel", relation="test.model.tag.rel", field_a="a_oid", field_b="b_oid")
+    boolean = fields.Boolean()
 
 
 @registry.add
@@ -92,6 +95,26 @@ def test_integer():
     ts = t.create({"char_max_req": "0123456789",
                    "integer": 31.4})  # Float convert
     assert(ts.integer == 31)
+
+
+def test_boolean():
+    """ Attempt to set an boolean value in different ways
+    """
+    t = self.env["TestModel"]
+    # Set True
+    ti = t.create({"char_max_req": "testbool", "boolean": True})
+    assert(ti.boolean is True)
+    # Set False
+    ti.write({"boolean": False})
+    # Set to truthful integer
+    ti.write({"boolean": 1})
+    assert(ti.boolean is True)
+    # Set to untruthful integer
+    ti.write({"boolean": 0})
+    assert(ti.boolean is False)
+    # Set to None
+    ti.write({"boolean": None})
+    assert(ti.boolean is None)
 
 
 def test_m2o():
@@ -168,7 +191,8 @@ def test_o2m():
     assert(rec.o2m.count() == 0)
 
     # Replace
-    recs = self.env["TestModel"].search({"char_max_req":  {'$regex': "o2mc_.*"}})
+    recs = self.env["TestModel"].search(
+        {"char_max_req":  {'$regex': "o2mc_.*"}})
     assert(recs.count() == 4)
     rec.o2m = ('create', {"char_max_req": "o2mc_5"})
     rec.o2m = ('create', {"char_max_req": "o2mc_6"})

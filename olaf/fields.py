@@ -125,6 +125,21 @@ class Integer(BaseField):
         super().__set__(instance, value)
 
 
+class Boolean(BaseField):
+    """ Field Class for storing boolean values
+    """
+
+    def __set__(self, instance, value):
+        if value is not None:
+            if not isinstance(value, bool):
+                try:
+                    value = bool(value)
+                except ValueError:
+                    raise ValueError(
+                        "Cannot convert '{}' to boolean".format(str(value)))
+        super().__set__(instance, value)
+
+
 class RelationalField(BaseField):
     """ Provides a set of common utilities
     for relational fields.
