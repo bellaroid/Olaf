@@ -60,12 +60,12 @@ class Model(metaclass=ModelMeta):
         self.env = environment
         self._fields = fields
         # Set default query
-        self._query = {"_id": "-1"}
+        self._query = {"$expr": { "$eq": [0, 1]}}
         if query is not None:
             self._query = query
         self._buffer = dict()
         self._implicit_save = True
-        self._cursor = conn.db[self._name].find(query, session=self.env.session)
+        self._cursor = conn.db[self._name].find(self._query, session=self.env.session)
 
     def __repr__(self):
         return "<DocSet {} - {} items>".format(self._name, self.count())
