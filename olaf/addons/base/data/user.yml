@@ -1,6 +1,6 @@
 "base.user":
   -
-    _id:  baseuserroot
+    id: root
     name: Administrator
     email: olaf
     password: olaf

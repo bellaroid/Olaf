@@ -60,12 +60,13 @@ class Model(metaclass=ModelMeta):
         self.env = environment
         self._fields = fields
         # Set default query
-        self._query = {"$expr": { "$eq": [0, 1]}}
+        self._query = {"$expr": {"$eq": [0, 1]}}
         if query is not None:
             self._query = query
         self._buffer = dict()
         self._implicit_save = True
-        self._cursor = conn.db[self._name].find(self._query, session=self.env.session)
+        self._cursor = conn.db[self._name].find(
+            self._query, session=self.env.session)
 
     def __repr__(self):
         return "<DocSet {} - {} items>".format(self._name, self.count())
@@ -94,6 +95,9 @@ class Model(metaclass=ModelMeta):
             self._cursor.rewind()
             raise
         return self.__class__(self.env, {"_id": document["_id"]})
+
+    def __bool__(self):
+        return self.count() > 0
 
     def search(self, query):
         """ Return a new set of documents """
@@ -142,7 +146,8 @@ class Model(metaclass=ModelMeta):
                 raise ValueError(
                     "Cannot assign value to {} during creation".format(field))
         self.validate(vals)
-        new_id = conn.db[self._name].insert_one(self._buffer, session=self.env.session).inserted_id
+        new_id = conn.db[self._name].insert_one(
+            self._buffer, session=self.env.session).inserted_id
         self._buffer.clear()
         return self.__class__(self.env, {"_id": new_id})
 
@@ -196,7 +201,8 @@ class Model(metaclass=ModelMeta):
                     # Retrieve all the records in the co-model for the current
                     # field that are related to any of the oids in the dataset
                     rels = list(conn.db[self._fields[field]._comodel_name].find(
-                        {inversed_by: {"$in": related_ids}}, {represent: 1, inversed_by: 1},
+                        {inversed_by: {"$in": related_ids}}, {
+                            represent: 1, inversed_by: 1},
                         session=self.env.session))
                     # Build dictionary with the model record oid as key
                     # and a list of tuples with its co-model relations as value.
@@ -215,7 +221,8 @@ class Model(metaclass=ModelMeta):
                     rels_int = list(conn.db[rel_model_name].find(
                         {field_a: {"$in": related_ids}}, session=self.env.session))
                     rels_rep = list(conn.db[self._fields[field]._comodel_name].find(
-                        {"_id": {"$in": [rel[field_b] for rel in rels_int]}}, {represent: 1},
+                        {"_id": {"$in": [rel[field_b]
+                                         for rel in rels_int]}}, {represent: 1},
                         session=self.env.session))
                     rels_rep_dict = {rel["_id"]: rel[represent]
                                      for rel in rels_rep}
@@ -262,10 +269,11 @@ class Model(metaclass=ModelMeta):
         """ Deletes all the documents in the set.
         Return the amount of deleted elements.
         """
+        ids = self.ids()
         if self._name in registry.__deletion_constraints__:
             for constraint in registry.__deletion_constraints__[self._name]:
                 mod, fld, cons = constraint
-                related = self.env[mod].search({fld: {"$in": self.ids()}})
+                related = self.env[mod].search({fld: {"$in": ids}})
                 if cons == "RESTRICT":
                     if related.count() > 0:
                         raise DeletionConstraintError(
@@ -280,7 +288,19 @@ class Model(metaclass=ModelMeta):
                 else:
                     raise ValueError(
                         "Invalid deletion constraint '{}'".format(cons))
-        outcome = conn.db[self._name].delete_many(self._query, session=self.env.session)
+        
+
+        # Delete documents
+        outcome = conn.db[self._name].delete_many(
+            self._query, session=self.env.session)
+        
+        # Delete any base.model.data documents 
+        # referencing any of the deleted documents
+        conn.db["base.model.data"].delete_many({
+            "model": self._name,
+            "res_id": {"$in": ids}
+        })
+
         return outcome.deleted_count
 
     def _save(self):
@@ -333,3 +353,100 @@ class Model(metaclass=ModelMeta):
         if as_strings:
             return [str(item._id) for item in self]
         return [item._id for item in self]
+
+    def get(self, external_id):
+        """ Finds a single document by its external id """
+        mod_data = self.env["base.model.data"].search({"model": self._name, "name": external_id})
+        if not mod_data:
+            return None
+        return self.search({"_id": mod_data.res_id })
+
+    def load(self, fields, dataset):
+        """
+        Public method for importing data massively.
+        Performs a validation on every single dataset entry,
+        collecting any errors that may occur (up to 10).
+        If no errors were found, then importation is performed.
+        In any case, returns a dictionary with two keys:
+        - ids: A list of newly created or updated ids.
+        - errors: A list of errors found during the validation
+        process.
+        If a list contains any items, then the other should not.
+        """
+        ids = list()
+        errors = list()
+        for index, data in enumerate(dataset):
+            dict_data = {field: data[i] for i, field in enumerate(fields)}
+            dict_data.pop("id", None)
+            try:
+                self.validate(dict_data)
+            except Exception as e:
+                if len(errors) == 10:
+                    break
+                errors.append("Item {}: {}".format(str(index), str(e)))
+        
+        if len(errors) == 0:
+            ids = self._load(fields, dataset)
+
+        return {"ids": ids, "errors": errors}
+
+    def _load(self, fields, dataset):
+        """
+        Private method for loading data.
+        This method assumes validation has been already performed.
+        Returns list of generated or updated ids.
+        """
+
+        def _load_update(dict_data, res_id):
+            """ Browse an existing record and update.
+            Return its _id
+            """
+            res_id = mod_data.res_id
+            rec = self.browse(res_id)
+            if not rec:
+                raise ValueError("Record not found (model: {}, _id: {})".format(
+                    self._name, str(res_id)))
+            del dict_data["id"]
+            rec.write(dict_data)
+            return rec._id
+
+        def _load_create(dict_data, with_name=False):
+            """ Create a new record and a model data
+            entry linked to it.
+            Return the newly created record _id.
+            """
+            recid = dict_data.pop("id", None)
+            rec = self.create(dict_data)
+            res_id = rec._id
+            name = recid if with_name else "__import__.{}".format(str(res_id))
+            self.env["base.model.data"].create({
+                "model": self._name,
+                "name": name,
+                "res_id": res_id
+            })
+            return res_id
+
+        ids = list()
+        for data in dataset:
+            dict_data = {field: data[i] for i, field in enumerate(fields)}
+            if "id" in fields and dict_data["id"] is not None:
+                # An external id was provided
+                # This either means a record has to be created
+                # and linked to an external id, or an existing
+                # record has to be updated.
+                mod_data = self.env["base.model.data"].search(
+                    {"model": self._name, "name": dict_data["id"]})
+                if mod_data:
+                    # External id exists in database, update.
+                    res_id = _load_update(dict_data, mod_data.res_id)
+                else:
+                    # External id does not exist in database,
+                    # create new record and generate model data entry.
+                    res_id = _load_create(dict_data, True)
+            else:
+                # An external id was not provided. Create a new record.
+                res_id = _load_create(dict_data, False)
+
+            ids.append(res_id)
+
+        return ids

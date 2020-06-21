@@ -82,7 +82,7 @@ class Identifier(BaseField):
             except TypeError:
                 raise TypeError(
                     "Cannot convert value of type {} to ObjectId".format(type(value).__name__))
-        instance._buffer["_id"] = value
+        instance._buffer[self.attr] = value
 
 
 class Char(BaseField):
