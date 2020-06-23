@@ -4,18 +4,125 @@ import logging
 import importlib
 import click
 import sys
+import csv
+import bson
+from . import config
+from olaf.db import Connection
+from olaf.tools.environ import Environment
 
 logger = logging.getLogger(__name__)
 file_name = "manifest.yml"
+root_uid = bson.ObjectId("000000000000000000000000")
+
 
 def initialize():
     """
     Olaf Bootstraping Function
     """
-    # TODO: Shouldn't all of this be in the registry?
+
+    def load_deletion_constraints():
+        """
+        Routine for populating deletion constraints
+        """
+        from olaf import registry
+        from olaf.fields import Many2one
+        for model, cls in registry.__models__.items():
+            for attr_name in dir(cls):
+                attr = getattr(cls, attr_name)
+                if isinstance(attr, Many2one):
+                    comodel = attr._comodel_name
+                    constraint = attr._ondelete
+                    if comodel not in registry.__deletion_constraints__:
+                        registry.__deletion_constraints__[comodel] = list()
+                    registry.__deletion_constraints__[comodel].append(
+                        (model, attr_name, constraint))
+
+    def load_module_data(module_name, module_data):
+        """
+        Routine for loading data from a given module into database
+        """
+        def load_data(env, fname):
+            """
+            Imports data from a file.
+            - If file is in CSV format, then guess the model from the filename.
+            First row represents columns, remaining rows represent the data matrix.
+            - If file is in YAML format, it is allowed to import data for multiple models.
+            Top level value represents a model, followed by - key:value pairs.
+            """
+            # Get filename from abs path
+            base = os.path.basename(fname)
+            # Split basename in (name, extension)
+            split = os.path.splitext(base)
+
+            fields = list()
+            data = list()
+            if split[1].lower() in [".csv"]:
+                model = split[0]
+                with open(fname) as csv_file:
+                    csv_reader = csv.reader(csv_file, delimiter=",")
+                    first_line = True
+                    for row in csv_reader:
+                        if first_line:
+                            first_line = False
+                            fields = [*row]
+                        else:
+                            data.append([*row])
+                    env[model].load(fields, data)
+            elif split[1].lower() in [".yml", ".yaml"]:
+                # TODO: Parse and load YAML file
+                pass
+
+        def load_file_data(env, module_name, module_data):
+            """
+            Parses module data, gets filenames and calls loader function
+            """
+            # Get module status
+            module = env.conn.db["base.module"].find_one({"name": module_name})
+
+            if not module:
+                result = env.conn.db["base.module"].insert_one(
+                    {"name": module_name, "status": "pending"})
+                module = env.conn.db["base.module"].find_one(
+                    {"_id": result.inserted_id})
+
+            if module["status"] == "pending":
+                if "security" in module_data["manifest"]:
+                    for file in module_data["manifest"]["security"]:
+                        fname = os.path.join(
+                            module_data["path"], module_name, file)
+                        logger.debug(
+                            "Loading security file '{}' for module '{}'".format(file, module_name))
+                        load_data(env, fname)
+                if "data" in module_data["manifest"]:
+                    for file in module_data["manifest"]["data"]:
+                        fname = os.path.join(
+                            module_data["path"], module_name, file)
+                        logger.debug(
+                            "Loading data file '{}' for module '{}'".format(file, module_name))
+                        load_data(env, fname)
+
+                # Flag module as installed
+                env.conn.db["base.module"].update_one(
+                    {"name": module_name}, {"$set": {"status": "installed"}})
+
+        conn = Connection()
+        client = conn.cl
+
+        if config.DB_REPLICASET_ENABLE:
+            with client.start_session() as session:
+                with session.start_transaction():
+                    # Create environment with session
+                    env = Environment(root_uid, session)
+                    load_file_data(env, module_name, module_data)
+        else:
+            # Create environment without session (MongoDB transactions disabled)
+            env = Environment(root_uid)
+            load_file_data(env, module_name, module_data)
+
     # Read All Modules
     color = click.style
-    logger.info(color(" *** Initializing Olaf *** ", fg="black", bg="green", bold=True))
+    logger.info(color(" *** Initializing Olaf *** ",
+                      fg="black", bg="green", bold=True))
     # Ensure root user exists
     ensure_root_user()
     modules = manifest_parser()
@@ -27,20 +134,10 @@ def initialize():
         else:
             sys.path.append(modules[module_name]["path"])
             importlib.import_module(module_name)
+        # Import Module Data
+        load_module_data(module_name, modules[module_name])
     # At this point, all model classes should be loaded in the registry
-    from olaf import registry
-    from olaf.fields import Many2one
-    # Populate Deletion Constraints
-    for model, cls in registry.__models__.items():
-        for attr_name in dir(cls):
-            attr = getattr(cls, attr_name)
-            if isinstance(attr, Many2one):
-                comodel = attr._comodel_name
-                constraint = attr._ondelete
-                if comodel not in registry.__deletion_constraints__:
-                    registry.__deletion_constraints__[comodel] = list()
-                registry.__deletion_constraints__[comodel].append(
-                    (model, attr_name, constraint))
+    load_deletion_constraints()
     logger.info(color("System Ready", fg="white", bold=True))
 
 
@@ -56,7 +153,7 @@ def manifest_parser():
     # Search for modules in olaf/addons first
     base_dir = os.path.join(os.path.dirname(
         os.path.abspath("olaf.py")), "olaf/addons")
-    
+
     scan_addons_dir(base_dir, modules, base=True)
 
     # Search for modules in each EXTRA_ADDONS folder
@@ -66,6 +163,7 @@ def manifest_parser():
         scan_addons_dir(extra_addons_dir, modules)
 
     return modules
+
 
 def scan_addons_dir(addons_dir, modules_dict, base=False):
     """
@@ -79,7 +177,8 @@ def scan_addons_dir(addons_dir, modules_dict, base=False):
             path = os.path.basename(_dir)
             for file in os.listdir(os.path.join(root, _dir)):
                 if file == file_name:
-                    cur_dir = os.path.join(root, _dir) # Absolute path to directory
+                    # Absolute path to directory
+                    cur_dir = os.path.join(root, _dir)
                     logger.debug(
                         "Parsing Manifest File at {}".format(cur_dir))
                     manifest = yaml.safe_load(
@@ -142,19 +241,19 @@ def ensure_root_user():
     from bson import ObjectId
     from werkzeug.security import generate_password_hash
 
-    # Root user's ObjectId
-    oid = ObjectId(b"baseuserroot")
     # Generate hashed password
     passwd = generate_password_hash(config.ROOT_PASSWORD)
 
     conn = Connection()
-    root = conn.db["base.user"].find_one({"_id": oid})
+    root = conn.db["base.user"].find_one({"_id": root_uid})
 
     if not root:
         # Create root user
         logger.warning("Root user is not present, creating...")
-        conn.db["base.user"].insert_one({"_id": oid, "name": "Root", "email": "root", "password": passwd})
+        conn.db["base.user"].insert_one(
+            {"_id": root_uid, "name": "root", "email": "root", "password": passwd})
     else:
         # Update root user's password
         logger.info("Overwriting root user password")
-        conn.db["base.user"].update_one({"_id": oid}, {"$set": {"password": passwd}})
+        conn.db["base.user"].update_one({"_id": root_uid}, {
+                                        "$set": {"name": "root", "email": "root", "password": passwd}})

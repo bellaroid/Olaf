@@ -1,11 +1,13 @@
 from olaf import registry
+from olaf.db import Connection
 from frozendict import frozendict
 
 class Environment(object):
     def __init__(self, uid, session=None):
-        self.context = frozendict({"uid": uid})
-        self.session = session
+        self.context =  frozendict({"uid": uid})
+        self.session =  session
         self.registry = registry
+        self.conn =     Connection()
 
     def __iter__(self):
         return iter(self.registry)

@@ -7,5 +7,5 @@ category: "Base"
 description: >
   Provides basic functionality for the Olaf framework
 data:
-  - "data/user.yml"
+  - "data/base.user.csv"
 demo: []
