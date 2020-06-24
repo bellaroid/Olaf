@@ -57,6 +57,7 @@ def initialize():
             fields = list()
             data = list()
             if split[1].lower() in [".csv"]:
+                """ CSV Loader """
                 model = split[0]
                 with open(fname) as csv_file:
                     csv_reader = csv.reader(csv_file, delimiter=",")
@@ -69,8 +70,22 @@ def initialize():
                             data.append([*row])
                     env[model].load(fields, data)
             elif split[1].lower() in [".yml", ".yaml"]:
-                # TODO: Parse and load YAML file
-                pass
+                """ YAML Loader """
+                with open(fname) as yaml_file:
+                    yaml_data = yaml.safe_load(yaml_file)
+                    for model_name, model_data in yaml_data.items():
+                        for item in model_data:
+                            # Iterate over all data items in order
+                            # to get all fields
+                            for field, _ in item.items():
+                                if field not in fields:
+                                    fields.append(field)
+                        for item in model_data:
+                            # Now that we know every available
+                            # field in the file, perform data mapping.
+                            data.append([item.get(field, None)
+                                         for field in fields])
+                        env[model_name].load(fields, data)
 
         def load_file_data(env, module_name, module_data):
             """
@@ -87,18 +102,18 @@ def initialize():
 
             if module["status"] == "pending":
                 if "security" in module_data["manifest"]:
-                    for file in module_data["manifest"]["security"]:
+                    for _file in module_data["manifest"]["security"]:
                         fname = os.path.join(
-                            module_data["path"], module_name, file)
+                            module_data["path"], module_name, _file)
                         logger.debug(
-                            "Loading security file '{}' for module '{}'".format(file, module_name))
+                            "Loading security file '{}' for module '{}'".format(_file, module_name))
                         load_data(env, fname)
                 if "data" in module_data["manifest"]:
-                    for file in module_data["manifest"]["data"]:
+                    for _file in module_data["manifest"]["data"]:
                         fname = os.path.join(
-                            module_data["path"], module_name, file)
+                            module_data["path"], module_name, _file)
                         logger.debug(
-                            "Loading data file '{}' for module '{}'".format(file, module_name))
+                            "Loading data file '{}' for module '{}'".format(_file, module_name))
                         load_data(env, fname)
 
                 # Flag module as installed

@@ -8,4 +8,7 @@ description: >
   Provides basic functionality for the Olaf framework
 data:
   - "data/base.user.csv"
+  - "data/group.yml"
+security:
+  - ""
 demo: []
