@@ -136,8 +136,7 @@ def initialize():
 
     # Read All Modules
     color = click.style
-    logger.info(color(" *** Initializing Olaf *** ",
-                      fg="black", bg="green", bold=True))
+    logger.info(color("Initializing Olaf", fg="white", bold=True))
     # Ensure root user exists
     ensure_root_user()
     modules = manifest_parser()
