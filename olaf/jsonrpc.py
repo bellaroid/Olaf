@@ -106,22 +106,29 @@ def handle_call(data, uid):
     return result
 
 
-def call_method(p, model, method):
+def call_method(params, model, method):
     if method == "search":
-        query = p.get("query", {})
+        query = params.get("query", {})
         result = model.search(query).ids()
     elif method == "read":
-        ids = p.get("ids", [])
-        fields = p.get("fields", [])
+        ids = params.get("ids", [])
+        fields = params.get("fields", [])
         result = model.browse(ids).read(fields)
     elif method == "count":
-        query = p.get("query", {})
-        result = model.search({}).count()
+        query = params.get("query", {})
+        result = model.search(query).count()
     elif method == "search_read":
-        query = p.get("query", {})
-        fields = p.get("fields", [])
+        query = params.get("query", {})
+        fields = params.get("fields", [])
         result = model.search(query).read(fields)
     elif method == "unlink":
-        query = p.get("query", {})
-        result = model.search(query).unlink()
+        ids = params.get("ids", [])
+        result = model.browse(ids).unlink()
+    else:
+        # Generic method call
+        ids =    params.get("ids", [])
+        docset = model.browse(ids)
+        args =   params.get("args", [])
+        kwargs = params.get("kwargs", {})
+        result = getattr(docset, method)(*args, **kwargs)
     return result
