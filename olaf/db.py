@@ -46,10 +46,15 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         """ Classes wrapped around this method
         will be added to the registry.
         """
-        # Handle Index and Compound Indexes creation
         from olaf.fields import BaseField
         conn = Connection()
         attrs = dir(cls)
+        
+        # Create collection if not present
+        if cls._name not in conn.db.list_collection_names():
+            conn.db.create_collection(cls._name)
+        
+        # Handle Index and Compound Indexes creation
         for attr_name in attrs:
             attr = getattr(cls, attr_name)
             if attr_name == "_compound_indexes":

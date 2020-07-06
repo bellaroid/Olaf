@@ -1,0 +1,3 @@
+id,name,model,group_id/id,allow_read,allow_write,allow_create,allow_unlink
+base.user_access_admin,Administrator User Access,base.user,base.group.admin,1,1,1,1
+base.user_access_readonly,Read-Only User Access,base.user,base.group.user,1,0,0,0

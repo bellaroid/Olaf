@@ -1,9 +1,10 @@
+import logging
 from olaf.fields import BaseField, Identifier, NoPersist, RelationalField, One2many, Many2one, Many2many
 from olaf.db import Connection
 from bson import ObjectId
 from olaf import registry
 
-
+logger = logging.getLogger(__name__)
 conn = Connection()
 
 
@@ -50,7 +51,7 @@ class Model(metaclass=ModelMeta):
             raise ValueError(
                 "Model {} attribute '_name' was not defined".format(
                     self.__class__.__name__))
-        # Create a list of the fields within this model
+        # Create a dict of fields within this model
         cls = self.__class__
         fields = dict()
         for attr_name in dir(cls):
@@ -288,13 +289,12 @@ class Model(metaclass=ModelMeta):
                 else:
                     raise ValueError(
                         "Invalid deletion constraint '{}'".format(cons))
-        
 
         # Delete documents
         outcome = conn.db[self._name].delete_many(
             self._query, session=self.env.session)
-        
-        # Delete any base.model.data documents 
+
+        # Delete any base.model.data documents
         # referencing any of the deleted documents
         conn.db["base.model.data"].delete_many({
             "model": self._name,
@@ -356,39 +356,202 @@ class Model(metaclass=ModelMeta):
 
     def get(self, external_id):
         """ Finds a single document by its external id """
-        mod_data = self.env["base.model.data"].search({"model": self._name, "name": external_id})
+        mod_data = self.env["base.model.data"].search(
+            {"model": self._name, "name": external_id})
         if not mod_data:
             return None
-        return self.search({"_id": mod_data.res_id })
+        return self.search({"_id": mod_data.res_id})
 
-    def load(self, fields, dataset):
-        """
-        Public method for importing data massively.
-        Performs a validation on every single dataset entry,
-        collecting any errors that may occur (up to 10).
-        If no errors were found, then importation is performed.
-        In any case, returns a dictionary with two keys:
-        - ids: A list of newly created or updated ids.
-        - errors: A list of errors found during the validation
-        process.
-        If a list contains any items, then the other should not.
-        """
-        ids = list()
-        errors = list()
-        for index, data in enumerate(dataset):
-            dict_data = {field: data[i] for i, field in enumerate(fields)}
+    def load(self, fields, data):
+        """ A recursive data loader"""
+
+        def _generate_metadata(import_fields):
+            """ Generate field metadata dictionary and 
+            a reduced list of fields (e.g. without 
+            subfields nor x2m's)
+            """
+
+            simple_fields = list()
+
+            meta = {
+                "base": dict(),
+                "m2o":  dict(),
+                "o2m":  dict()
+            }
+
+            for index, field in enumerate(import_fields):
+                # Skip if field was already added
+                if field[0] in simple_fields:
+                    continue
+
+                # Get field instance
+                field_inst = self._fields.get(field[0], None)
+
+                # Generate field metadata and simplified field list
+                if isinstance(field_inst, Many2one):
+                    if field[0] not in meta["m2o"]:
+                        meta["m2o"][field[0]] = {"original": []}
+                    if field[0] not in simple_fields:
+                        simple_fields.append(field[0])
+                        meta["m2o"][field[0]]["new"] = simple_fields.index(field[0])
+                    meta["m2o"][field[0]]["original"].append(index)
+                elif isinstance(field_inst, One2many):
+                    if field[0] not in meta["o2m"]:
+                        meta["o2m"][field[0]] = {"original": []}
+                    meta["o2m"][field[0]]["original"].append(index)
+                elif isinstance(field_inst, Many2many):
+                    logger.warning("Many2many Importation not implemented")
+                else:
+                    if field[0] not in meta["base"]:
+                        meta["base"][field[0]] = {"original": [index]}
+                    if field[0] in simple_fields:
+                        raise("Base field[0] '{}' is repeated in column header".format(field[0]))
+                    simple_fields.append(field[0])
+                    meta["base"][field[0]]["new"] = simple_fields.index(field[0])
+
+            return meta, simple_fields
+
+        logger.debug("Importing Data -- {} - {}".format(self._name, fields))
+
+        ids = []
+        errors = []
+
+        import_fields = [field.split("/") for field in fields]
+        # >>> [["id"], ["field_a"], ["field_b", "subfield_a"], ["field_b", "subfield_b"]]
+
+        # A simplified matrix reducing M2O's into a single field
+        # and not including O2M nor o2m.
+        simple_data = list()
+
+        norm_fields = [field[0] for field in import_fields]
+        # >>> ["id", "field_a", "field_b"]
+
+        # Run sanity check before continuing
+        for field in norm_fields:
+            if field not in self._fields and field != "id":
+                raise KeyError(
+                    "Field '{}' not found in model '{}'".format(field, self._name))
+
+        # Get metadata and simplified list
+        meta, simple_fields = _generate_metadata(import_fields)
+
+        if len(meta["base"].items()) == 0:
+            raise ValueError(
+                "Import operation requires at least one base field to be included among the headers")
+
+        idx = -1
+        data_length = len(data)
+
+        # Loop over data
+        while idx < data_length - 1:
+
+            # Increment index
+            idx += 1
+
+            # Current row
+            row_data = data[idx]
+
+            # Make sure row isn't empty
+            if all("" == d for d in row_data):
+                continue
+
+            # Prepare simplified data row
+            simple_data_row = [None] * len(simple_fields)
+
+            # Verify row maximum span
+            rowspan = 1
+            while True:
+                if idx + rowspan == data_length:
+                    # End of dataset reached
+                    break
+
+                # Get next row, only basefields (no m2o nor o2m)
+                next_row = data[idx + rowspan]
+                for _, base_meta in meta["base"].items():
+                    for i in base_meta["original"]:
+                        next_row_data = [next_row[i]]
+
+                # Check if the next row basefields are all empty
+                if all("" == d for d in next_row_data):
+                    rowspan += 1
+                else:
+                    break
+
+            # Import M2Os
+            for m2o_field, m2o_meta in meta["m2o"].items():
+                m2o_fields = list()
+                m2o_data = list()
+                for col_index in m2o_meta["original"]:
+                    m2o_fields.append("/".join(import_fields[col_index][1:]))
+                for offset in range(0, rowspan):
+                    m2o_data.append([data[idx + offset][col_index]
+                                     for col_index in m2o_meta["original"]])
+                outcome = self.env[self._fields[m2o_field]._comodel_name].load(
+                    m2o_fields, m2o_data)
+                if len(outcome["errors"]) > 0:
+                    for err in outcome["errors"]:
+                        errors.append(err)
+                    continue
+                if len(outcome["ids"]) == 1:
+                    simple_data_row[m2o_meta["new"]] = outcome["ids"][0]
+
+            # Move base data to new matrix
+            for _, base_data in meta["base"].items():
+                simple_data_row[base_data["new"]] = row_data[base_data["original"][0]]
+
+            # Append to simplified data list
+            simple_data.append(simple_data_row)
+
+            # # Finally, import One2many data
+            # for o2m_field, o2m_meta in meta["o2m"].items():
+            #     o2m_fields = list()
+            #     o2m_data = list()
+            #     inversed_by = self._fields[o2m_field]._inversed_by
+            #     for col_index in o2m_meta["original"]:
+            #         o2m_fields.append("/".join(import_fields[col_index][1:]))
+
+            #     # Ensure inversed_by field in fields list and get its index
+            #     if inversed_by not in o2m_fields:
+            #         o2m_fields.append(inversed_by)
+            #         inversed_by_index = o2m_fields[-1]
+            #     else:
+            #         inversed_by_index = o2m_fields.index(inversed_by)
+
+            #     for offset in range(0, rowspan):
+            #         data_row = [data[idx + offset][col_index]
+            #                     for col_index in o2m_meta["original"]]
+            #         if inversed_by_index == len(data_row):
+            #             data_row.append(res_id)
+            #         else:
+            #             data_row[inversed_by] = res_id
+            #         o2m_data.append(data_row)
+
+            #     outcome = self.env[self._fields[m2o_field]._inversed_by].load(
+            #         o2m_fields, o2m_data)
+
+            #     if len(outcome["errors"]) > 0:
+            #         for err in outcome["errors"]:
+            #             errors.append(err)
+            #         continue
+            #     if len(outcome["ids"]) == 1:
+            #         simple_data_row[o2m_meta["new"]] = outcome["ids"][0]
+
+        # Prepare for importation
+        for idx, data in enumerate(simple_data):
+            dict_data = {f:data[i] for i,f in enumerate(simple_fields)}
             dict_data.pop("id", None)
             try:
                 self.validate(dict_data)
             except Exception as e:
                 if len(errors) == 10:
                     break
-                errors.append("Item {}: {}".format(str(index), str(e)))
-        
+                errors.append("Item {}: {}".format(str(idx), str(e)))
+
         if len(errors) == 0:
-            ids = self._load(fields, dataset)
+            ids = self._load(simple_fields, simple_data)
 
         return {"ids": ids, "errors": errors}
+
 
     def _load(self, fields, dataset):
         """

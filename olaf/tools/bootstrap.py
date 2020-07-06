@@ -41,13 +41,11 @@ def initialize():
         """
         Routine for loading data from a given module into database
         """
-        def load_data(env, fname):
+        def load_data(env, fname, security=False):
             """
             Imports data from a file.
             - If file is in CSV format, then guess the model from the filename.
             First row represents columns, remaining rows represent the data matrix.
-            - If file is in YAML format, it is allowed to import data for multiple models.
-            Top level value represents a model, followed by - key:value pairs.
             """
             # Get filename from abs path
             base = os.path.basename(fname)
@@ -56,36 +54,19 @@ def initialize():
 
             fields = list()
             data = list()
-            if split[1].lower() in [".csv"]:
-                """ CSV Loader """
-                model = split[0]
-                with open(fname) as csv_file:
-                    csv_reader = csv.reader(csv_file, delimiter=",")
-                    first_line = True
-                    for row in csv_reader:
-                        if first_line:
-                            first_line = False
-                            fields = [*row]
-                        else:
-                            data.append([*row])
-                    env[model].load(fields, data)
-            elif split[1].lower() in [".yml", ".yaml"]:
-                """ YAML Loader """
-                with open(fname) as yaml_file:
-                    yaml_data = yaml.safe_load(yaml_file)
-                    for model_name, model_data in yaml_data.items():
-                        for item in model_data:
-                            # Iterate over all data items in order
-                            # to get all fields
-                            for field, _ in item.items():
-                                if field not in fields:
-                                    fields.append(field)
-                        for item in model_data:
-                            # Now that we know every available
-                            # field in the file, perform data mapping.
-                            data.append([item.get(field, None)
-                                         for field in fields])
-                        env[model_name].load(fields, data)
+
+            model = split[0] if not security else "base.model.access"
+            with open(fname) as csv_file:
+                csv_reader = csv.reader(csv_file, delimiter=",")
+                first_line = True
+                for row in csv_reader:
+                    if first_line:
+                        first_line = False
+                        fields = [*row]
+                    else:
+                        data.append([*row])
+                env[model].load(fields, data)
+
 
         def load_file_data(env, module_name, module_data):
             """
@@ -101,13 +82,6 @@ def initialize():
                     {"_id": result.inserted_id})
 
             if module["status"] == "pending":
-                if "security" in module_data["manifest"]:
-                    for _file in module_data["manifest"]["security"]:
-                        fname = os.path.join(
-                            module_data["path"], module_name, _file)
-                        logger.debug(
-                            "Loading security file '{}' for module '{}'".format(_file, module_name))
-                        load_data(env, fname)
                 if "data" in module_data["manifest"]:
                     for _file in module_data["manifest"]["data"]:
                         fname = os.path.join(
@@ -115,6 +89,13 @@ def initialize():
                         logger.debug(
                             "Loading data file '{}' for module '{}'".format(_file, module_name))
                         load_data(env, fname)
+                if "security" in module_data["manifest"]:
+                    for _file in module_data["manifest"]["security"]:
+                        fname = os.path.join(
+                            module_data["path"], module_name, _file)
+                        logger.debug(
+                            "Loading security file '{}' for module '{}'".format(_file, module_name))
+                        load_data(env, fname, True)
 
                 # Flag module as installed
                 env.conn.db["base.module"].update_one(

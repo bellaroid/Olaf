@@ -32,5 +32,6 @@ class User(models.Model):
 class Group(models.Model):
     _name = "base.group"
 
-    name =      fields.Char(required=True, max_length=255)
+    name = fields.Char(required=True, max_length=255)
+    model_access_ids = fields.One2many("base.model.access", inversed_by="group_id")
 

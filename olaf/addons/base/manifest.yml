@@ -7,8 +7,8 @@ category: "Base"
 description: >
   Provides basic functionality for the Olaf framework
 data:
+  - "data/base.group.csv"
   - "data/base.user.csv"
-  - "data/group.yml"
 security:
-  - ""
+  - "security/base.user.access.csv"
 demo: []
