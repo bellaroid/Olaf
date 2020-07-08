@@ -154,19 +154,8 @@ class Model(metaclass=ModelMeta):
 
     def write(self, vals):
         """ Write values to the documents in the current set"""
-        with NoPersist(self):
-            try:
-                # Let each field validate its value.
-                for field_name in vals.keys():
-                    if field_name in self._fields:
-                        if field_name != "_id":
-                            setattr(self, field_name, vals[field_name])
-                        else:
-                            raise ValueError(
-                                "'_id' field is readonly once document has been persisted")
-            except Exception:
-                raise
-            self._save()
+        self.validate(vals, True)
+        self._save()
 
     def read(self, fields=[]):
         """ Returns a list of dictionaries representing
@@ -312,34 +301,50 @@ class Model(metaclass=ModelMeta):
             self._buffer.clear()
         return
 
-    def validate(self, vals):
+    def validate(self, vals, write=False):
         """ Ensure a given dict of values passes all
         required field validations for this model
         """
         with NoPersist(self):
-            # Check each model field
-            for field_name, field in self._fields.items():
-                # If value is not present among vals
-                if field_name not in vals:
-                    # Skip x2many assignments
-                    if isinstance(field, One2many) or isinstance(field, Many2many):
-                        continue
-                    # Check if field is marked as required
-                    if field._required:
-                        # Check for a default value
-                        if hasattr(field, "_default"):
-                            vals[field_name] = field._default
+            if not write:
+                # -- Validating a create operation --
+                # We've got to make sure required fields
+                # are present and default values are assigned
+                # if they were omitted by the user. 
+
+                # Check each model field
+                for field_name, field in self._fields.items():
+                    # If value is not present among vals
+                    if field_name not in vals:
+                        # Skip x2many assignments
+                        if isinstance(field, One2many) or isinstance(field, Many2many):
+                            continue
+                        # Check if field is marked as required
+                        if field._required:
+                            # Check for a default value
+                            if hasattr(field, "_default"):
+                                vals[field_name] = field._default
+                            else:
+                                raise ValueError(
+                                    "Missing value for required field '{}'".format(field_name))
+                        else:
+                            # Value not present and not required
+                            if hasattr(field, "_default"):
+                                vals[field_name] = field._default
+                            else:
+                                vals[field_name] = None
+                    # Let each field validate its value.
+                    setattr(self, field_name, vals[field_name])
+            else:
+                # -- Validating a write operation --
+                # Let each field validate its value.
+                for field_name in vals.keys():
+                    if field_name in self._fields:
+                        if field_name != "_id":
+                            setattr(self, field_name, vals[field_name])
                         else:
                             raise ValueError(
-                                "Missing value for required field '{}'".format(field_name))
-                    else:
-                        # Value not present and not required
-                        if hasattr(field, "_default"):
-                            vals[field_name] = field._default
-                        else:
-                            vals[field_name] = None
-                # Let each field validate its value.
-                setattr(self, field_name, vals[field_name])
+                                "'_id' field is readonly once document has been persisted")
 
     def ensure_one(self):
         """ Ensures current set contains a single document """
@@ -412,7 +417,7 @@ class Model(metaclass=ModelMeta):
             return meta, simple_fields
 
         logger.debug("Importing Data -- {} - {}".format(self._name, fields))
-
+        
         ids = []
         errors = []
 
@@ -536,12 +541,22 @@ class Model(metaclass=ModelMeta):
             #     if len(outcome["ids"]) == 1:
             #         simple_data_row[o2m_meta["new"]] = outcome["ids"][0]
 
-        # Prepare for importation
-        for idx, data in enumerate(simple_data):
-            dict_data = {f:data[i] for i,f in enumerate(simple_fields)}
-            dict_data.pop("id", None)
+        # Data validation phase
+        for idx, _data in enumerate(simple_data):
+            # Comprehend a dictionary with the current row data
+            dict_data = {f:_data[i] for i,f in enumerate(simple_fields)}
+            # Determine wether row would require 
+            # a create() or a write() operation
+            if "id" in simple_fields and dict_data["id"] is not None:
+                mod_data = self.env["base.model.data"].search(
+                    {"model": self._name, "name": dict_data["id"]})
+                write = bool(mod_data)
+                dict_data.pop("id", None)
+            else:
+                write = False
+            
             try:
-                self.validate(dict_data)
+                self.validate(dict_data, write)
             except Exception as e:
                 if len(errors) == 10:
                     break

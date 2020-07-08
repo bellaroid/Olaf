@@ -133,9 +133,11 @@ class Boolean(BaseField):
     def __set__(self, instance, value):
         if value is not None:
             if not isinstance(value, bool):
-                try:
-                    value = bool(value)
-                except ValueError:
+                if value in ["false", "0", 0]:
+                    value = False
+                elif value in ["true", "1", 1]:
+                    value = True
+                else:
                     raise ValueError(
                         "Cannot convert '{}' to boolean".format(str(value)))
         super().__set__(instance, value)

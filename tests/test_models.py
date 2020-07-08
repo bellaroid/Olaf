@@ -20,6 +20,7 @@ class tModel(models.Model):
     name = fields.Char()
     country = fields.Char(default="Argentina")
     age = fields.Integer()
+    boolean = fields.Boolean()
     cascade_id = fields.Many2one("test.models.comodel", ondelete="CASCADE")
     restrict_id = fields.Many2one("test.models.comodel", ondelete="RESTRICT")
     setnull_id = fields.Many2one("test.models.comodel", ondelete="SET NULL")
@@ -171,13 +172,17 @@ def test_load():
 
     # Test importation overwriting existing documents
     tm1.load(
-        ["id", "name", "age"], 
+        ["id", "name", "age", "boolean"], 
         [
-            ["testload1", "name1B", 1], 
-            ["testload2", "name2B", 2]])
+            ["testload1", "name1B", 1, 1], 
+            ["testload2", "name2B", 2, 0]])
     
-    assert(tm1.get("testload1").name == "name1B")
-    assert(tm1.get("testload2").name == "name2B")
+    doc1 = tm1.get("testload1")
+    doc2 = tm1.get("testload2")
+    assert(doc1.name == "name1B")
+    assert(doc2.name == "name2B")
+    assert(doc1.boolean == True)
+    assert(doc2.boolean == False)
 
     # Test importation without providing ids
     outcome = tm1.load(
