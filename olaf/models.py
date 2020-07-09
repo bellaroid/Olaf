@@ -320,7 +320,7 @@ class Model(metaclass=ModelMeta):
                 # -- Validating a create operation --
                 # We've got to make sure required fields
                 # are present and default values are assigned
-                # if they were omitted by the user. 
+                # if they were omitted by the user.
 
                 # Check each model field
                 for field_name, field in self._fields.items():
@@ -377,6 +377,32 @@ class Model(metaclass=ModelMeta):
             return None
         return self.search({"_id": mod_data.res_id})
 
+    def with_context(self, **kwargs):
+        """ Return a new instance of the current
+        object with its context modified.
+        """
+        from olaf.tools.environ import Environment
+
+        # Unfreeze current context
+        new_context = {k: v for k, v in self.env.context.items()}
+
+        # Patch context with new arguments
+        for k, v in kwargs.items():
+            new_context[k] = v
+
+        # Create a new environment
+        new_env = Environment(
+            self.env.context["uid"],
+            session=self.env.session,
+            context=new_context)
+
+        return self.__class__(new_env, self._query)
+
+    def sudo(self):
+        """ Shortcut method for modifying current
+        user context """
+        return self.with_context(uid=ObjectId("000000000000000000000000"))
+
     def load(self, fields, data):
         """ A recursive data loader"""
 
@@ -408,7 +434,8 @@ class Model(metaclass=ModelMeta):
                         meta["m2o"][field[0]] = {"original": []}
                     if field[0] not in simple_fields:
                         simple_fields.append(field[0])
-                        meta["m2o"][field[0]]["new"] = simple_fields.index(field[0])
+                        meta["m2o"][field[0]]["new"] = simple_fields.index(
+                            field[0])
                     meta["m2o"][field[0]]["original"].append(index)
                 elif isinstance(field_inst, One2many):
                     if field[0] not in meta["o2m"]:
@@ -427,7 +454,7 @@ class Model(metaclass=ModelMeta):
             return meta, simple_fields
 
         logger.debug("Importing Data -- {} - {}".format(self._name, fields))
-        
+
         ids = []
         errors = []
 
@@ -554,8 +581,8 @@ class Model(metaclass=ModelMeta):
         # Data validation phase
         for idx, _data in enumerate(simple_data):
             # Comprehend a dictionary with the current row data
-            dict_data = {f:_data[i] for i,f in enumerate(simple_fields)}
-            # Determine wether row would require 
+            dict_data = {f: _data[i] for i, f in enumerate(simple_fields)}
+            # Determine wether row would require
             # a create() or a write() operation
             if "id" in simple_fields and dict_data["id"] is not None:
                 mod_data = self.env["base.model.data"].search(
@@ -564,7 +591,7 @@ class Model(metaclass=ModelMeta):
                 dict_data.pop("id", None)
             else:
                 write = False
-            
+
             try:
                 self.validate(dict_data, write)
             except Exception as e:
@@ -576,7 +603,6 @@ class Model(metaclass=ModelMeta):
             ids = self._load(simple_fields, simple_data)
 
         return {"ids": ids, "errors": errors}
-
 
     def _load(self, fields, dataset):
         """

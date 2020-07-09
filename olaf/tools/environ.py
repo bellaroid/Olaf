@@ -3,8 +3,11 @@ from olaf.db import Connection
 from frozendict import frozendict
 
 class Environment(object):
-    def __init__(self, uid, session=None):
-        self.context =  frozendict({"uid": uid})
+    def __init__(self, uid, session=None, context=dict()):
+        _context = {"uid": uid}
+        for key, value in context.items():
+            _context[key] = value
+        self.context =  frozendict(_context)
         self.session =  session
         self.registry = registry
         self.conn =     Connection()
