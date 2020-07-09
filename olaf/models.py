@@ -3,6 +3,7 @@ from olaf.fields import BaseField, Identifier, NoPersist, RelationalField, One2m
 from olaf.db import Connection
 from bson import ObjectId
 from olaf import registry
+from olaf.security import check_access
 
 logger = logging.getLogger(__name__)
 conn = Connection()
@@ -140,6 +141,8 @@ class Model(metaclass=ModelMeta):
         return conn.db[self._name].count_documents(self._query, session=self.env.session)
 
     def create(self, vals):
+        # Perform create access check
+        check_access(self._name, "create", self.env.context["uid"])
         for field in vals.keys():
             if field in self._fields and (
                     isinstance(self._fields[field], One2many) or
@@ -154,6 +157,8 @@ class Model(metaclass=ModelMeta):
 
     def write(self, vals):
         """ Write values to the documents in the current set"""
+        # Perform write access check
+        check_access(self._name, "write", self.env.context["uid"])
         self.validate(vals, True)
         self._save()
 
@@ -164,6 +169,9 @@ class Model(metaclass=ModelMeta):
         database. If omitted, all fields will be read. This method also
         renders the representation of relational fields (Many2one and x2many).
         """
+        # Perform read access check
+        check_access(self._name, "read", self.env.context["uid"])
+
         if len(fields) == 0:
             fields = self._fields.keys()
         cache = dict()
@@ -259,6 +267,8 @@ class Model(metaclass=ModelMeta):
         """ Deletes all the documents in the set.
         Return the amount of deleted elements.
         """
+        # Perform unlink access check
+        check_access(self._name, "unlink", self.env.context["uid"])
         ids = self.ids()
         if self._name in registry.__deletion_constraints__:
             for constraint in registry.__deletion_constraints__[self._name]:

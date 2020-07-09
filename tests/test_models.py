@@ -8,7 +8,7 @@ from olaf.tools.environ import Environment
 
 initialize()
 
-uid = ObjectId(b"baseuserroot")
+uid = ObjectId("000000000000000000000000")
 env = Environment(uid)
 self = registry["base.user"](env, {"_id": uid})
 

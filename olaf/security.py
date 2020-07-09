@@ -2,10 +2,18 @@ import jwt
 import datetime
 from bson import ObjectId
 from olaf.db import Connection
+from functools import reduce
 from olaf.http import JsonResponse, route
 from olaf.tools import config
 from werkzeug.exceptions import BadRequest
 from werkzeug.security import check_password_hash
+
+operation_field_map = {
+    "read":     "allow_read",
+    "write":    "allow_write",
+    "create":   "allow_create",
+    "unlink":   "allow_unlink"
+}
 
 def jwt_required(func, *args, **kwargs):
     """ Methods wrapped around this decorator
@@ -87,3 +95,55 @@ def token(request):
                "expires": token_expiration.isoformat()}
 
     return JsonResponse({"access_token": jwt.encode(payload, key=config.SECRET_KEY).decode('utf-8')})
+
+
+class AccessError(Exception):
+    pass
+
+def check_access(model_name, operation, uid):
+    """ 
+    Check if a given user can perform 
+    a given operation on a given model
+    """
+
+    # Root user bypasses all security checks
+    if uid == ObjectId("000000000000000000000000"):
+        return
+
+    conn = Connection()
+    user = conn.db["base.user"].find_one({"_id": uid })
+    if not user:
+        raise AccessError("User not found")
+
+    # Search in user/group many2many intermediate collection
+    # for groups this is user is related to.
+    user_group_rels = conn.db["base.user.group.rel"].find({"user_oid": uid})
+
+    # Create a list of groups this user belongs to
+    groups = [rel["group_oid"] for rel in user_group_rels]
+    
+    # Abort right here if user doesn't belong to any groups
+    if not groups:
+        raise AccessError(
+            "Access Denied -- Model: '{}' "
+            "Operation: '{}' - User: '{}'".format(
+                model_name, operation, user))
+
+    # Search for all ACLs associated to all this groups
+    acls = conn.db["base.model.access"].find(
+        {"group_id": {"$in": groups}, "model": model_name})
+
+    # Compute access
+    allow_list = [acl[operation_field_map[operation]] for acl in acls]
+    allow = reduce(lambda x, y: x | y, allow_list)
+
+    if not allow:
+        # Deny access
+        raise AccessError(
+            "Access Denied -- Model: '{}' "
+            "Operation: '{}' - User: '{}'".format(
+                model_name, operation, user))
+    
+    return
+        
+
