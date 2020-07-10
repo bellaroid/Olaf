@@ -8,6 +8,7 @@ import csv
 import bson
 from . import config
 from olaf.db import Connection
+from olaf.http import route
 from olaf.tools.environ import Environment
 
 logger = logging.getLogger(__name__)
@@ -133,6 +134,9 @@ def initialize():
         load_module_data(module_name, modules[module_name])
     # At this point, all model classes should be loaded in the registry
     load_deletion_constraints()
+    # Generate route map
+    logger.info("Generating Route Map")
+    route.build_url_map()
     logger.info(color("System Ready", fg="white", bold=True))
 
 

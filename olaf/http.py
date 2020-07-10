@@ -1,6 +1,7 @@
 import json
 import os
 import jinja2
+import logging
 from bson import ObjectId
 from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
@@ -8,14 +9,19 @@ from werkzeug.wrappers.json import JSONMixin
 from werkzeug.routing import Map, Rule
 from olaf import registry
 
+logger = logging.getLogger(__name__)
+
+
 class Request(JSONMixin, WZRequest):
     """ Standard Werkzeug Request with JSON Mixin """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
 class Response(JSONMixin, WZResponse):
     """ Standard Werkzeug Response with JSON Mixin """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -51,6 +57,7 @@ class RouteMap(metaclass=RouteMapMeta):
     """ Stores the application URL map """
 
     def __init__(self):
+        self.pre_map = dict()
         self.url_map = Map([])
 
     def __call__(self):
@@ -58,11 +65,30 @@ class RouteMap(metaclass=RouteMapMeta):
 
     def add(self, string, methods=None):
         """ Bind an URL pattern to a function """
+
+        def _sanitize_methods(methods):
+            """ Sort and capitalize methods """
+            if methods is None:
+                return []
+
+            methods.sort(key=lambda x: x.upper())
+            return [method.upper() for method in methods]
+
         def decorator(function):
-            rule = Rule(string, methods=methods, endpoint=function)
-            self.url_map.add(rule)
+            # Create a dict with the given parameters
+            key = (string, frozenset(_sanitize_methods(methods)))
+            # Verify if rule is already present
+            self.pre_map[key] = Rule(string, methods=methods, endpoint=function)
             return function
+
         return decorator
+
+    def build_url_map(self):
+        """ Build url map out of collected rules """
+
+        for rule in self.pre_map.values():
+            self.url_map.add(rule)
+        return self.url_map
 
 
 # Instantiate RouteMap

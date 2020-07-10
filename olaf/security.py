@@ -70,6 +70,10 @@ def token(request):
     except BadRequest:
         return JsonResponse({"msg": "Invalid JSON"})
 
+    # Fail if data is None
+    if data is None:
+        return JsonResponse({"msg": "Invalid JSON"})
+
     # Make sure request body is valid
     if not "email" in data or not "password" in data:
         return JsonResponse({"msg": "Malformed Request"}, status=400)
