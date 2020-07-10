@@ -1,0 +1,22 @@
+<html>
+
+<head>
+  <title>{% block title %}Olaf Framework{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.2/css/bulma.min.css">
+  <script defer src="https://use.fontawesome.com/releases/v5.3.1/js/all.js"></script>
+</head>
+
+<body>
+  {% block body %}
+  {% endblock %}
+</body>
+  {% block footer %}
+  <footer class="footer">
+    <div class="content has-text-centered">
+      <p>Made with <span class="fa fa-heart"></span> at <a href="https://www.bellaroid.com">Bellaroid</a></p>
+    </div>
+  </footer>
+  {% endblock %}
+</body>
+
+</html>
