@@ -54,11 +54,19 @@ class RouteMapMeta(type):
 
 
 class RouteMap(metaclass=RouteMapMeta):
-    """ Stores the application URL map """
+    """
+    Stores the application URL map.
+    The add() method collects mappings of
+    a URL string and its HTTP methods with a 
+    certain function. In order to allow different
+    modules to overwrite previously added rules,
+    collected rules are not loaded until 
+    build_url_map() method is called.
+    """
 
     def __init__(self):
         self.pre_map = dict()
-        self.url_map = Map([])
+        self.url_map = None
 
     def __call__(self):
         return self.url_map
@@ -77,17 +85,24 @@ class RouteMap(metaclass=RouteMapMeta):
         def decorator(function):
             # Create a dict with the given parameters
             key = (string, frozenset(_sanitize_methods(methods)))
-            # Verify if rule is already present
+            # Store (or overwrite) rule
             self.pre_map[key] = Rule(string, methods=methods, endpoint=function)
             return function
 
         return decorator
 
     def build_url_map(self):
-        """ Build url map out of collected rules """
-
-        for rule in self.pre_map.values():
-            self.url_map.add(rule)
+        """
+        Build url map out of collected rules.
+        If the URL Map has been alredy initialized,
+        then skip the procedure.
+        """
+        if not self.url_map:
+            # Initialize URL Map only it if hasn't been yet.
+            logger.info("Generating Route Map")
+            self.url_map = Map([])
+            for rule in self.pre_map.values():
+                self.url_map.add(rule)
         return self.url_map
 
 

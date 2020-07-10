@@ -135,7 +135,6 @@ def initialize():
     # At this point, all model classes should be loaded in the registry
     load_deletion_constraints()
     # Generate route map
-    logger.info("Generating Route Map")
     route.build_url_map()
     logger.info(color("System Ready", fg="white", bold=True))
 
