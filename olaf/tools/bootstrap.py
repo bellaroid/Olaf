@@ -8,8 +8,9 @@ import csv
 import bson
 from . import config
 from olaf.db import Connection
-from olaf.http import route
+from olaf.http import route, j2env
 from olaf.tools.environ import Environment
+
 
 logger = logging.getLogger(__name__)
 file_name = "manifest.yml"
@@ -124,16 +125,22 @@ def initialize():
     modules = manifest_parser()
     sorted_modules = toposort_modules(modules)
     logger.info("Importing Modules")
+    template_paths = list()
     for module_name in sorted_modules:
-        if modules[module_name]["base"]:
+        if modules[module_name]["base"]:    
+            template_paths.insert(0, "addons/base/templates")
             importlib.import_module("olaf.addons.{}".format(module_name))
         else:
             sys.path.append(modules[module_name]["path"])
             importlib.import_module(module_name)
         # Import Module Data
         load_module_data(module_name, modules[module_name])
+        # Prepend template directory of this module 
+        template_paths.insert(0, os.path.join(modules[module_name]["path"], module_name, "templates"))
     # At this point, all model classes should be loaded in the registry
     load_deletion_constraints()
+    # Create Jinja2 Templating Environment
+    j2env.build(template_paths)
     # Generate route map
     route.build_url_map()
     logger.info(color("System Ready", fg="white", bold=True))

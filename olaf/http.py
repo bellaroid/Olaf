@@ -1,8 +1,8 @@
 import json
 import os
-import jinja2
 import logging
 from bson import ObjectId
+from jinja2 import Environment as Jinja2Environment, FileSystemLoader
 from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers.json import JSONMixin
@@ -86,7 +86,8 @@ class RouteMap(metaclass=RouteMapMeta):
             # Create a dict with the given parameters
             key = (string, frozenset(_sanitize_methods(methods)))
             # Store (or overwrite) rule
-            self.pre_map[key] = Rule(string, methods=methods, endpoint=function)
+            self.pre_map[key] = Rule(
+                string, methods=methods, endpoint=function)
             return function
 
         return decorator
@@ -110,13 +111,35 @@ class RouteMap(metaclass=RouteMapMeta):
 route = RouteMap()
 
 
-def render_template(relative_path, context):
-    """ Renders a Jinja2 Template.
-    NOTE: It is not the purpose of this framework to serve views.
+class J2EnvironmentMeta(type):
+    """ Ensures a single instance of the J2Environment class """
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(
+                J2EnvironmentMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class J2Environment(metaclass=J2EnvironmentMeta):
     """
-    abs_path = os.path.join(os.path.dirname(__file__), relative_path)
-    with open(abs_path) as file_:
-        template = jinja2.Template(file_.read())
+    A wrapper for a Jinja2 Environment.
+    By calling `build` passing along a list
+    of template paths, a Jinja2 environment is built.
+    """
+
+    def build(self, template_paths):
+        self.env = Jinja2Environment(loader=FileSystemLoader(template_paths))
+
+
+# Instantiate J2Environment
+j2env = J2Environment()
+
+
+def render_template(template_name, context=dict()):
+    """ Renders a Jinja2 Template """
+    template = j2env.env.get_template(template_name)
     return Response(template.render(**context), mimetype='text/html')
 
 

@@ -4,4 +4,4 @@ import datetime
 @route.add("/")
 def index(request):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return render_template("addons/base/views/index.html.j2", dict(now=now))
+    return render_template("index.html.j2", dict(now=now))
