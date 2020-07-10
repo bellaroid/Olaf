@@ -1,11 +1,12 @@
 import os
 import time
 from olaf.http import Request, route
+from frozendict import frozendict
 from olaf.tools import initialize, config
 from werkzeug.serving import run_simple
 from werkzeug.routing import NotFound
 from werkzeug.local import Local, LocalManager
-from frozendict import frozendict
+from werkzeug.middleware.shared_data import SharedDataMiddleware
 
 
 class Olaf(object):
@@ -31,6 +32,7 @@ def create_app():
     local = Local()
     local_manager = LocalManager([local])
     app = local_manager.make_middleware(Olaf())
+    app = SharedDataMiddleware(app, {'/static': ('olaf', 'static')})
     return app
 
 
