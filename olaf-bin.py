@@ -41,5 +41,5 @@ if __name__ == '__main__':
     app = create_app()
     debug = config.APP_DEBUG
     reloader = config.APP_RELOAD
-    run_simple('127.0.0.1', 5000, app, use_debugger=debug,
+    run_simple(config.APP_URL, config.APP_PORT, app, use_debugger=debug,
                use_reloader=reloader, passthrough_errors=True)

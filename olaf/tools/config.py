@@ -28,7 +28,8 @@ class Config:
     collection of static attributes available for
     the whole application environment.
     """
-    APP_URL =               Setting("str",  os.environ.get("APP_URL", "http://localhost:5000"))
+    APP_URL =               Setting("str",  os.environ.get("APP_URL", "127.0.0.1"))
+    APP_PORT =              Setting("int",  os.environ.get("APP_PORT", 5000))
     APP_DEBUG =             Setting("bool", os.environ.get("APP_DEBUG", True))
     APP_RELOAD =            Setting("bool", os.environ.get("APP_RELOAD", True))
     SECRET_KEY =            Setting("str",  os.getenv("SECRET_KEY", "SoMeThInGrEaLlYhArDtOgUeSs"))
