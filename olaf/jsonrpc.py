@@ -1,7 +1,7 @@
 import logging
 from olaf import registry
 from olaf.db import Connection
-from olaf.http import Request, JsonResponse, route
+from olaf.http import Request, Response, JsonResponse, route
 from olaf.tools import config
 from olaf.security import jwt_required
 from olaf.tools.environ import Environment
@@ -10,7 +10,7 @@ from werkzeug.local import Local
 
 _logger = logging.getLogger(__name__)
 
-@route.add("/jsonrpc", methods=["POST"])
+@route.add("/jsonrpc", methods=["POST", "OPTIONS"])
 @jwt_required
 def jsonrpc_dispatcher(uid, request):
     """ 
@@ -21,6 +21,13 @@ def jsonrpc_dispatcher(uid, request):
     with the directives listed in 
     https://www.jsonrpc.org/specification
     """
+    
+    # Capture Options
+    if request.method == "OPTIONS":
+        resp = Response(status=200)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        return resp
 
     # Ensure JSON request
     try:
@@ -76,7 +83,10 @@ def jsonrpc_dispatcher(uid, request):
             "jsonrpc": "2.0"
         }
 
-    return JsonResponse(result)
+    resp = JsonResponse(result)
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
+    return resp
 
 
 def handle_call(data, uid):

@@ -6,20 +6,21 @@ from jinja2 import Environment as Jinja2Environment, FileSystemLoader
 from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers.json import JSONMixin
+from werkzeug.wrappers.cors import CORSResponseMixin
 from werkzeug.routing import Map, Rule
 from olaf import registry
 
 logger = logging.getLogger(__name__)
 
 
-class Request(JSONMixin, WZRequest):
+class Request(WZRequest, JSONMixin):
     """ Standard Werkzeug Request with JSON Mixin """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
 
-class Response(JSONMixin, WZResponse):
+class Response(WZResponse, JSONMixin, CORSResponseMixin):
     """ Standard Werkzeug Response with JSON Mixin """
 
     def __init__(self, *args, **kwargs):

@@ -3,7 +3,7 @@ import datetime
 from bson import ObjectId
 from olaf.db import Connection
 from functools import reduce
-from olaf.http import JsonResponse, route
+from olaf.http import Response, JsonResponse, route
 from olaf.tools import config
 from werkzeug.exceptions import BadRequest
 from werkzeug.security import check_password_hash
@@ -58,12 +58,19 @@ def jwt_required(func, *args, **kwargs):
     return function_wrapper
 
 
-@route.add("/token")
+@route.add("/token", methods=["GET", "OPTIONS"])
 def token(request):
     """ Handles POST requests on the /api/token endpoint.
     If a valid email and password are provided within the
     JSON body, it responds with an access token.
     """
+
+    # Capture Options
+    if request.method == "OPTIONS":
+        resp = Response(status=200)
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        return resp
 
     try:
         data = request.get_json()
@@ -98,7 +105,10 @@ def token(request):
     payload = {"uid": str(user["_id"]),
                "expires": token_expiration.isoformat()}
 
-    return JsonResponse({"access_token": jwt.encode(payload, key=config.SECRET_KEY).decode('utf-8')})
+    resp = JsonResponse({"access_token": jwt.encode(payload, key=config.SECRET_KEY).decode('utf-8')})
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    return resp
 
 
 class AccessError(Exception):
