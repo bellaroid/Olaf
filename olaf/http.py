@@ -7,8 +7,10 @@ from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers.json import JSONMixin
 from werkzeug.wrappers.cors import CORSResponseMixin
-from werkzeug.routing import Map, Rule
+from werkzeug.routing import Map, Rule, NotFound
 from olaf import registry
+from olaf.tools import config
+
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +112,46 @@ class RouteMap(metaclass=RouteMapMeta):
 
 # Instantiate RouteMap
 route = RouteMap()
+
+
+def dispatch(env, start_response):
+    """ 
+    Main HTTP entrypoint
+    """
+
+    # Bind URL Map
+    url_map = route.url_map
+    urls = url_map.bind_to_environ(env)
+    request = Request(env)  # pylint: disable=assigning-non-slot
+
+    # Intercept OPTIONS requests
+    if request.method == "OPTIONS":
+        r = Response(status=200)
+        r.access_control_max_age = 3600 * 24
+        r.access_control_allow_methods = ["POST", "GET"]
+        r.access_control_allow_origin = config.CORS_ALLOW_ORIGIN
+        r.access_control_allow_headers = [
+            "Access-Control-Allow-Headers",
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With"]
+        return r(env, start_response)
+    try:
+        endpoint, values = urls.match()
+        response = endpoint(request, **values)
+    except NotFound as e:
+        return e(env, start_response)
+
+    # Add CORS headers to all responses
+    response.access_control_allow_origin = config.CORS_ALLOW_ORIGIN
+    response.access_control_allow_methods = ["POST", "GET"]
+    response.access_control_allow_headers = [
+        "Access-Control-Allow-Headers",
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With"]
+
+    return response(env, start_response)
 
 
 class J2EnvironmentMeta(type):
