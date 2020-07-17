@@ -44,5 +44,6 @@ class Config:
     JWT_EXPIRATION_TIME =   Setting("int",  os.getenv("JWT_EXPIRATION_TIME", 2000))
     ROOT_PASSWORD =         Setting("str",  os.getenv("ROOT_PASSWORD", "olaf"))
     EXTRA_ADDONS =          Setting("str",  os.getenv("EXTRA_ADDONS", ""))
+    CORS_ALLOW_ORIGIN =     Setting("str",  os.getenv("CORS_ALLOW_ORIGIN", "http://localhost:{}".format(str(APP_PORT.value))))
 
 config = Config

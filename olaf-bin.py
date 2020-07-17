@@ -1,6 +1,6 @@
 import os
 import time
-from olaf.http import Request, route
+from olaf.http import Request, Response, route
 from frozendict import frozendict
 from olaf.tools import initialize, config
 from werkzeug.serving import run_simple
@@ -17,11 +17,32 @@ class Olaf(object):
         urls = url_map.bind_to_environ(env)
         local = Local()
         local.request = request = Request(env)  # pylint: disable=assigning-non-slot
+        # Intercept OPTIONS requests
+        if request.method == "OPTIONS":
+            r = Response(status=200)
+            r.access_control_max_age = 3600 * 24
+            r.access_control_allow_methods = ["POST", "GET"]
+            r.access_control_allow_origin = config.CORS_ALLOW_ORIGIN
+            r.access_control_allow_headers = [
+                "Access-Control-Allow-Headers", 
+                "Content-Type", 
+                "Authorization", 
+                "X-Requested-With"]
+            return r(env, start_response)
         try:
             endpoint, values = urls.match()
             response = endpoint(request, **values)
         except NotFound as e:
             return e(env, start_response)
+
+        # Add CORS headers to all responses
+        response.access_control_allow_origin = config.CORS_ALLOW_ORIGIN
+        response.access_control_allow_methods = ["POST", "GET"]
+        response.access_control_allow_headers = [
+            "Access-Control-Allow-Headers", 
+            "Content-Type", 
+            "Authorization", 
+            "X-Requested-With"]
         return response(env, start_response)
 
     def __call__(self, env, start_response):

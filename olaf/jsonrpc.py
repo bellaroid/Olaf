@@ -21,13 +21,6 @@ def jsonrpc_dispatcher(uid, request):
     with the directives listed in 
     https://www.jsonrpc.org/specification
     """
-    
-    # Capture Options
-    if request.method == "OPTIONS":
-        resp = Response(status=200)
-        resp.headers['Access-Control-Allow-Origin'] = '*'
-        resp.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
-        return resp
 
     # Ensure JSON request
     try:
@@ -83,10 +76,7 @@ def jsonrpc_dispatcher(uid, request):
             "jsonrpc": "2.0"
         }
 
-    resp = JsonResponse(result)
-    resp.headers['Access-Control-Allow-Origin'] = '*'
-    resp.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
-    return resp
+    return JsonResponse(result)
 
 
 def handle_call(data, uid):
