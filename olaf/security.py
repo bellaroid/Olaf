@@ -131,7 +131,7 @@ def check_access(model_name, operation, uid):
         raise AccessError(
             "Access Denied -- Model: '{}' "
             "Operation: '{}' - User: '{}'".format(
-                model_name, operation, user))
+                model_name, operation, user["_id"]))
 
     # Search for all ACLs associated to all this groups
     acls = conn.db["base.model.access"].find(
