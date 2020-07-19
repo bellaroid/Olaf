@@ -276,6 +276,7 @@ class One2many(RelationalField):
         (5, 0, 0)           | ('clear')           | Unlink all (like using (3,ID) for all linked records)
         (6, 0, [IDs])       | ('replace', [OIDs]) | Replace the list of linked IDs (like using (5) then (4,ID) for each ID in the list of IDs)
         """
+        save = getattr(instance, "_implicit_save", True)
         for value in list_tuples:
             if value is None:
                 # Treat None assignment as clear
@@ -303,9 +304,10 @@ class One2many(RelationalField):
                     raise TypeError(
                         "Tuple argument #2 must be dict, got {} instead".format(
                             value[1].__class__.__name__))
-                values = value[1]
-                values[self._inversed_by] = instance._id
-                instance.env[self._comodel_name].create(values)
+                if save:
+                    values = value[1]
+                    values[self._inversed_by] = instance._id
+                    instance.env[self._comodel_name].create(values)
             elif value[0] == "write":
                 # Update an existing record in the co-model
                 # by assigning its 'inversed_by' field to this record.
@@ -318,8 +320,9 @@ class One2many(RelationalField):
                     raise TypeError(
                         "Tuple argument #2 must be dict, got {} instead".format(
                             value[2].__class__.__name__))
-                values = value[2]
-                item.write(values)
+                if save:
+                    values = value[2]
+                    item.write(values)
             elif value[0] == "purge":
                 # Delete the co-model record
                 if len(value) != 2:
@@ -327,7 +330,8 @@ class One2many(RelationalField):
                         "Invalid tuple length for x2many purge assignment")
                 oid = self._ensure_oid(value[1])
                 item = self._is_comodel_oid(oid, instance)
-                item.unlink()
+                if save:
+                    item.unlink()
             elif value[0] == "remove":
                 # Remove the reference to this record by clearing
                 # the 'inversed_by' field in the co-model record
@@ -336,7 +340,8 @@ class One2many(RelationalField):
                         "Invalid tuple length for x2many remove assignment")
                 oid = self._ensure_oid(value[1])
                 item = self._is_comodel_oid(oid, instance)
-                item.write({self._inversed_by: None})
+                if save:
+                    item.write({self._inversed_by: None})
             elif value[0] == "add":
                 # Add a reference to this record by setting
                 # the 'inversed_by' field in the co-model record
@@ -345,15 +350,17 @@ class One2many(RelationalField):
                         "Invalid tuple length for x2many add assignment")
                 oid = self._ensure_oid(value[1])
                 item = self._is_comodel_oid(oid, instance)
-                item.write({self._inversed_by: instance._id})
+                if save:
+                    item.write({self._inversed_by: instance._id})
             elif value[0] == "clear":
                 # Set all the references to this record to None
                 if len(value) != 1:
                     raise ValueError(
                         "Invalid tuple length for x2many clear assignment")
-                instance.env[self._comodel_name].search(
-                    {self._inversed_by: instance._id}).write(
-                        {self._inversed_by: None})
+                if save:
+                    instance.env[self._comodel_name].search(
+                        {self._inversed_by: instance._id}).write(
+                            {self._inversed_by: None})
             elif value[0] == "replace":
                 # Perform a clear and then add each element of the supplied list
                 if len(value) != 2:
@@ -363,14 +370,16 @@ class One2many(RelationalField):
                     raise TypeError(
                         "Tuple argument #2 must be list, got {} instead".format(
                             value[1].__class__.__name__))
-
-                comodel = self._get_comodel(instance)
-                comodel.search({self._inversed_by: instance._id}
-                            ).write({self._inversed_by: None})
-                comodel.browse(value[1]).write({self._inversed_by: instance._id})
+                if save:
+                    comodel = self._get_comodel(instance)
+                    comodel.search({self._inversed_by: instance._id}
+                                ).write({self._inversed_by: None})
+                    comodel.browse(value[1]).write({self._inversed_by: instance._id})
             else:
                 raise ValueError(
                     "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
+        if not save:
+            instance._buffer[self.attr] = list_tuples
 
 
 class Many2many(RelationalField):
@@ -424,6 +433,7 @@ class Many2many(RelationalField):
     def __set__(self, instance, list_tuples):
         """ A patched version of the O2M __set__ descriptor.
         """
+        save = getattr(instance, "_implicit_save", True)
         for value in list_tuples:
             if value is None:
                 # Treat None assignment as clear
@@ -450,10 +460,12 @@ class Many2many(RelationalField):
                     raise TypeError(
                         "Tuple argument #2 must be dict, got {} instead".format(
                             value[1].__class__.__name__))
+                
                 values = value[1]
-                rec = instance.env[self._comodel_name].create(values)
-                instance.env[self._relation].create(
-                    {self._field_a: instance._id, self._field_b: rec._id})
+                if save:
+                    rec = instance.env[self._comodel_name].create(values)
+                    instance.env[self._relation].create(
+                        {self._field_a: instance._id, self._field_b: rec._id})
             elif value[0] == "write":
                 # Update an existing record in the co-model
                 # by assigning its 'inversed_by' field to this record.
@@ -466,8 +478,9 @@ class Many2many(RelationalField):
                     raise TypeError(
                         "Tuple argument #2 must be dict, got {} instead".format(
                             value[2].__class__.__name__))
-                values = value[2]
-                item.write(values)
+                if save:
+                    values = value[2]
+                    item.write(values)
             elif value[0] == "purge":
                 # Delete the co-model record
                 if len(value) != 2:
@@ -475,8 +488,9 @@ class Many2many(RelationalField):
                         "Invalid tuple length for x2many purge assignment")
                 oid = self._ensure_oid(value[1])
                 item = self._is_comodel_oid(oid, instance)
-                item.unlink()
-                instance.env[self._relation].search({self._field_b: oid}).unlink()
+                if save:
+                    item.unlink()
+                    instance.env[self._relation].search({self._field_b: oid}).unlink()
             elif value[0] == "remove":
                 # Remove the reference to this record by clearing
                 # the 'inversed_by' field in the co-model record
@@ -485,7 +499,8 @@ class Many2many(RelationalField):
                         "Invalid tuple length for x2many remove assignment")
                 oid = self._ensure_oid(value[1])
                 item = self._is_comodel_oid(oid, instance)
-                instance.env[self._relation].search({self._field_b: oid}).unlink()
+                if save:
+                    instance.env[self._relation].search({self._field_b: oid}).unlink()
             elif value[0] == "add":
                 # Add a reference to this record by setting
                 # the 'inversed_by' field in the co-model record
@@ -494,14 +509,16 @@ class Many2many(RelationalField):
                         "Invalid tuple length for x2many add assignment")
                 oid = self._ensure_oid(value[1])
                 item = self._is_comodel_oid(oid, instance)
-                instance.env[self._relation].create(
-                    {self._field_a: instance._id, self._field_b: item._id})
+                if save:
+                    instance.env[self._relation].create(
+                        {self._field_a: instance._id, self._field_b: item._id})
             elif value[0] == "clear":
                 # Set all the references to this record to None
                 if len(value) != 1:
                     raise ValueError(
                         "Invalid tuple length for x2many clear assignment")
-                instance.env[self._relation].search({self._field_a: instance._id}).unlink()
+                if save:
+                    instance.env[self._relation].search({self._field_a: instance._id}).unlink()
             elif value[0] == "replace":
                 # Perform a clear and then add each element of the supplied list
                 if len(value) != 2:
@@ -511,13 +528,15 @@ class Many2many(RelationalField):
                     raise TypeError(
                         "Tuple argument #2 must be list, got {} instead".format(
                             value[1].__class__.__name__))
-
-                instance.env[self._relation].search({self._field_a: instance._id}).unlink()
-                for oid in value[1]:
-                    oid = self._ensure_oid(oid)
-                    _ = self._is_comodel_oid(oid, instance)
-                    instance.env[self._relation].create(
-                        {self._field_a: instance._id, self._field_b: oid})
+                if save:
+                    instance.env[self._relation].search({self._field_a: instance._id}).unlink()
+                    for oid in value[1]:
+                        oid = self._ensure_oid(oid)
+                        _ = self._is_comodel_oid(oid, instance)
+                        instance.env[self._relation].create(
+                            {self._field_a: instance._id, self._field_b: oid})
             else:
                 raise ValueError(
                     "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
+        if not save:                    
+            instance._buffer[self.attr] = list_tuples

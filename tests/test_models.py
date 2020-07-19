@@ -76,6 +76,14 @@ def test_model_create():
     assert(ti2._id == new_oid)
 
 
+def test_model_create_with_2many():
+    """ Create an element providing a 2many value
+    """
+    t = self.env["test.models.model"]
+    ti = t.create({"name": "Mr. Roboto", "age": 32, "onetomany_ids": [("create", {"name": "John"})]})
+    assert(ti.onetomany_ids.name == "John")
+
+
 def test_model_browse():
     # Test all possible singleton browse calls
     tm1 = self.env["test.models.model"].create({"name": "Test", "age": 10})

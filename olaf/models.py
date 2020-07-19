@@ -154,10 +154,8 @@ class Model(metaclass=ModelMeta):
                         raise ValueError(
                             "Cannot use x2many operation '{}' on create()".format(item[0]))
         self.validate(vals)
-        new_id = conn.db[self._name].insert_one(
-            self._buffer, session=self.env.session).inserted_id
-        self._buffer.clear()
-        return self.__class__(self.env, {"_id": new_id})
+        new_doc = self._save(insert=True)
+        return new_doc
 
     def write(self, vals):
         """ Write values to the documents in the current set"""
@@ -306,14 +304,39 @@ class Model(metaclass=ModelMeta):
 
         return outcome.deleted_count
 
-    def _save(self):
+    def _save(self, insert=False):
         """ Write values in buffer to conn and clear it.
         """
-        if len(self._buffer.items()) > 0:
-            conn.db[self._name].update_many(
-                self._query, {"$set": self._buffer}, session=self.env.session)
-            self._buffer.clear()
-        return
+        # Create two separate dictionaries for handling base and x2many fields
+        base_dict = dict()
+        x2m_dict =  dict()
+
+        # Map provided values to their dictionaries
+        items = self._buffer.items()
+        for field_name, value in items:
+            if isinstance(self._fields[field_name], Many2many) or \
+                    isinstance(self._fields[field_name], One2many):
+                x2m_dict[field_name] =  value
+            else:
+                base_dict[field_name] = value
+                
+        # Insert Base Fields
+        doc = self
+        if len(base_dict.items()) > 0:
+            if insert:
+                new_id = conn.db[self._name].insert_one(
+                    base_dict, session=self.env.session).inserted_id
+                doc = self.__class__(self.env, {"_id": new_id})
+            else:
+                conn.db[self._name].update_many(
+                    self._query, {"$set": base_dict}, session=self.env.session)
+
+        # Insert x2m Fields
+        for field_name, value in x2m_dict.items():
+            setattr(doc, field_name, value)
+
+        self._buffer.clear()
+        return doc
 
     def validate(self, vals, write=False):
         """ Ensure a given dict of values passes all
@@ -330,23 +353,24 @@ class Model(metaclass=ModelMeta):
                 for field_name, field in self._fields.items():
                     # If value is not present among vals
                     if field_name not in vals:
-                        # Skip x2many assignments
+                        # Treat x2many assignments as empty lists
                         if isinstance(field, One2many) or isinstance(field, Many2many):
-                            continue
-                        # Check if field is marked as required
-                        if field._required:
-                            # Check for a default value
-                            if hasattr(field, "_default"):
-                                vals[field_name] = field._default
-                            else:
-                                raise ValueError(
-                                    "Missing value for required field '{}'".format(field_name))
+                            vals[field_name] = list()
                         else:
-                            # Value not present and not required
-                            if hasattr(field, "_default"):
-                                vals[field_name] = field._default
+                            # Check if field is marked as required
+                            if field._required:
+                                # Check for a default value
+                                if hasattr(field, "_default"):
+                                    vals[field_name] = field._default
+                                else:
+                                    raise ValueError(
+                                        "Missing value for required field '{}'".format(field_name))
                             else:
-                                vals[field_name] = None
+                                # Value not present and not required
+                                if hasattr(field, "_default"):
+                                    vals[field_name] = field._default
+                                else:
+                                    vals[field_name] = None
                     # Let each field validate its value.
                     setattr(self, field_name, vals[field_name])
             else:
