@@ -143,12 +143,16 @@ class Model(metaclass=ModelMeta):
     def create(self, vals):
         # Perform create access check
         check_access(self._name, "create", self.env.context["uid"])
-        for field in vals.keys():
+        for field, value in vals.items():
             if field in self._fields and (
                     isinstance(self._fields[field], One2many) or
                     isinstance(self._fields[field], Many2many)):
-                raise ValueError(
-                    "Cannot assign value to {} during creation".format(field))
+                # Make sure x2many assignment does not contain
+                # any forbidden operation.
+                for item in value:
+                    if item[0] in ["write", "purge", "remove", "clear"]:
+                        raise ValueError(
+                            "Cannot use x2many operation '{}' on create()".format(item[0]))
         self.validate(vals)
         new_id = conn.db[self._name].insert_one(
             self._buffer, session=self.env.session).inserted_id
