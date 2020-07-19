@@ -170,53 +170,53 @@ def test_o2m():
     assert(rec.o2m.count() == 0)
 
     # Create
-    rec.o2m = ('create', {"char_max_req": "o2m_1"})
+    rec.o2m = [('create', {"char_max_req": "o2m_1"})]
     assert(rec.o2m.count() == 1)
     assert(rec.o2m.char_max_req == "o2m_1")
     recid = rec.o2m._id
 
     # Create Another
-    rec.o2m = ('create', {"char_max_req": "o2m_2"})
+    rec.o2m = [('create', {"char_max_req": "o2m_2"})]
     assert(rec.o2m.count() == 2)
 
     # Write
     item = self.env["TestModel"].browse(recid)
     assert(item.char_with_default == "Default")
-    rec.o2m = ('write', recid, {"char_with_default": "Not Default"})
+    rec.o2m = [('write', recid, {"char_with_default": "Not Default"})]
     assert(item.char_with_default == "Not Default")
 
     # Purge
-    rec.o2m = ('purge', recid)
+    rec.o2m = [('purge', recid)]
     assert(rec.o2m.count() == 1)
     with pytest.raises(ValueError):
         item.ensure_one()
 
     # Remove
     recid = rec.o2m     # Take the ID of the remaining document
-    rec.o2m = ('remove', recid)
+    rec.o2m = [('remove', recid)]
     assert(rec.o2m.count() == 0)
 
     # Add
     modrec = self.env["TestModel"].create({"char_max_req": "o2mc_1"})
-    rec.o2m = ('add', modrec._id)
+    rec.o2m = [('add', modrec._id)]
     assert(rec.o2m.count() == 1)
 
     # Clear
-    rec.o2m = ('create', {"char_max_req": "o2mc_2"})
-    rec.o2m = ('create', {"char_max_req": "o2mc_3"})
-    rec.o2m = ('create', {"char_max_req": "o2mc_4"})
+    rec.o2m = [('create', {"char_max_req": "o2mc_2"}),
+               ('create', {"char_max_req": "o2mc_3"}),
+               ('create', {"char_max_req": "o2mc_4"})]
     assert(rec.o2m.count() == 4)
-    rec.o2m = ('clear')
+    rec.o2m = [('clear')]
     assert(rec.o2m.count() == 0)
 
     # Replace
     recs = self.env["TestModel"].search(
         {"char_max_req":  {'$regex': "o2mc_.*"}})
     assert(recs.count() == 4)
-    rec.o2m = ('create', {"char_max_req": "o2mc_5"})
-    rec.o2m = ('create', {"char_max_req": "o2mc_6"})
+    rec.o2m = [('create', {"char_max_req": "o2mc_5"}),
+               ('create', {"char_max_req": "o2mc_6"})]
     assert(rec.o2m.count() == 2)
-    rec.o2m = ('replace', recs.ids())
+    rec.o2m = [('replace', recs.ids())]
     assert(rec.o2m == recs)
 
 
@@ -227,59 +227,59 @@ def test_m2m():
     assert(rec.m2m.count() == 0)
 
     # Create
-    rec.m2m = ("create", {"name": "Ninja"})
+    rec.m2m = [("create", {"name": "Ninja"})]
     assert(rec.m2m.count() == 1)
     assert(rec.m2m.name == "Ninja")
     recid = rec.m2m._id
 
     # Create Another
-    rec.m2m = ('create', {"name": "Toronja"})
+    rec.m2m = [('create', {"name": "Toronja"})]
     assert(rec.m2m.count() == 2)
 
     # Write
     item = self.env["TestTagModel"].browse(recid)
-    rec.m2m = ('write', recid, {"name": "Ganja"})
+    rec.m2m = [('write', recid, {"name": "Ganja"})]
     assert(item.name == "Ganja")
 
     # Purge
-    rec.m2m = ('purge', recid)
+    rec.m2m = [('purge', recid)]
     assert(rec.m2m.count() == 1)
     with pytest.raises(ValueError):
         item.ensure_one()
 
     # Remove
     recid = rec.m2m     # Take the ID of the remaining document
-    rec.m2m = ('remove', recid)
+    rec.m2m = [('remove', recid)]
     assert(rec.m2m.count() == 0)
 
     # Add
     modrec = self.env["TestTagModel"].create({"name": "m2m_1"})
-    rec.m2m = ('add', modrec._id)
+    rec.m2m = [('add', modrec._id)]
     assert(rec.m2m.count() == 1)
 
     # Clear
-    rec.m2m = ('create', {"name": "m2m_2"})
-    rec.m2m = ('create', {"name": "m2m_3"})
-    rec.m2m = ('create', {"name": "m2m_4"})
+    rec.m2m = [('create', {"name": "m2m_2"}),
+               ('create', {"name": "m2m_3"}),
+               ('create', {"name": "m2m_4"})]
     assert(rec.m2m.count() == 4)
-    rec.m2m = ('clear')
+    rec.m2m = [('clear')]
     assert(rec.m2m.count() == 0)
 
     # Replace
     recs = self.env["TestTagModel"].search({"name":  {'$regex': "m2m_.*"}})
     assert(recs.count() == 4)
-    rec.m2m = ('create', {"name": "m2m_5"})
-    rec.m2m = ('create', {"name": "m2m_6"})
+    rec.m2m = [('create', {"name": "m2m_5"}), 
+               ('create', {"name": "m2m_6"})]
     assert(rec.m2m.count() == 2)
-    rec.m2m = ('replace', recs.ids())
+    rec.m2m = [('replace', recs.ids())]
     assert(rec.m2m == recs)
 
     # Uniqueness of the compound key
     with pytest.raises(pymongo.errors.DuplicateKeyError):
-        rec.m2m = ('add', modrec._id)
+        rec.m2m = [('add', modrec._id)]
 
     with pytest.raises(pymongo.errors.DuplicateKeyError):
-        rec.m2m = ('create', {"name": "m2m_6"})
+        rec.m2m = [('create', {"name": "m2m_6"})]
 
 
 def test_unicity():

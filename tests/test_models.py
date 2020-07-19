@@ -140,8 +140,8 @@ def test_read():
     tm1 = self.env["test.models.model"].create(
         {"name": "Test", "age": 10, "setnull_id": tc1._id})
     # Perform x2many write in a separate operation
-    tm1.write({"onetomany_ids": ("replace", [tc1._id, tc2._id])})
-    tm1.write({"manytomany_ids": ("replace", [tc1._id, tc2._id])})
+    tm1.write({"onetomany_ids": [("replace", [tc1._id, tc2._id])]})
+    tm1.write({"manytomany_ids": [("replace", [tc1._id, tc2._id])]})
     read = tm1.read()
     assert(read[0]["name"] == "Test")
     assert(read[0]["age"] == 10)
