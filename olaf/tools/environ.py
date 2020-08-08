@@ -1,5 +1,5 @@
 from olaf import registry
-from olaf.db import Connection
+from olaf.db import Connection, DocumentCache
 from frozendict import frozendict
 
 class Environment(object):
@@ -11,6 +11,7 @@ class Environment(object):
         self.session =  session
         self.registry = registry
         self.conn =     Connection()
+        self.cache =    DocumentCache(session)
 
     def __iter__(self):
         return iter(self.registry)

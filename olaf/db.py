@@ -124,3 +124,37 @@ class Connection(metaclass=ConnectionMeta):
 
         self.cl = client
         self.db = client[database]
+
+
+class DocumentCache():
+    """ A place to store new documents that can't be persisted to
+    database yet, e.g. a document related to another, where the
+    latter does not exist yet in database.
+    """
+    def __init__(self, session=None):
+        self.__data__ = dict()
+        self.__session__ = session
+
+    def __iter__(self):
+        return iter(self.__data__)
+
+    def __len__(self):
+        return len(self.__data__)
+
+    def __getitem__(self, key):
+        if not key in self.__data__:
+            raise KeyError("Key '{}' not found in caché".format(key))
+        return self.__data__[key]
+
+    def add(self, model, data):
+        self.__data__[model][data["_id"]] = data
+
+    def clear(self):
+        self.__data__.clear()
+
+    def persist(self):
+        conn = Connection()
+        for model in self.__data__.keys():
+            data = [d for d in self.__data__[model].values()]
+            conn.db[model].insert_many(data, session=self.__session__)
+        self.clear()
