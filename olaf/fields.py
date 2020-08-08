@@ -49,9 +49,15 @@ class BaseField:
             # Get value from custom setter
             setter = getattr(instance, self._setter)
             value = setter(value)
-        instance._buffer[self.attr] = value
+        instance.env.cache.push(
+            instance._name,
+            instance._id,
+            {self.attr: value})
         if getattr(instance, "_implicit_save", True):
-            instance._save()
+            instance.env.cache.persist(
+                instance._name,
+                instance._id,
+                instance.env.session)
         return None
 
     def __get__(self, instance, owner):
@@ -82,7 +88,10 @@ class Identifier(BaseField):
             except TypeError:
                 raise TypeError(
                     "Cannot convert value of type {} to ObjectId".format(type(value).__name__))
-        instance._buffer[self.attr] = value
+        instance.env.cache.push(
+            instance._name,
+            value,
+            {self.attr: value})
 
 
 class Char(BaseField):
@@ -379,7 +388,10 @@ class One2many(RelationalField):
                 raise ValueError(
                     "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
         if not save:
-            instance._buffer[self.attr] = list_tuples
+            instance.env.cache.push(
+                instance._name,
+                instance._id,
+                {self.attr: list_tuples})
 
 
 class Many2many(RelationalField):
@@ -539,4 +551,7 @@ class Many2many(RelationalField):
                 raise ValueError(
                     "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
         if not save:                    
-            instance._buffer[self.attr] = list_tuples
+            instance.env.cache.push(
+                instance._name,
+                instance._id,
+                {self.attr: list_tuples})

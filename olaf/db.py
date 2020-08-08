@@ -126,7 +126,21 @@ class Connection(metaclass=ConnectionMeta):
         self.db = client[database]
 
 
-class DocumentCache():
+class DocumentCacheMeta(type):
+    """ This class ensures there's always a single
+    instance of the DocumentCache class for each
+    application instance.
+    """
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(
+                DocumentCacheMeta, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
+class DocumentCache(metaclass=DocumentCacheMeta):
     """ A place to store new documents that can't be persisted to
     database yet, e.g. a document related to another, where the
     latter does not exist yet in database.
@@ -146,15 +160,66 @@ class DocumentCache():
             raise KeyError("Key '{}' not found in caché".format(key))
         return self.__data__[key]
 
-    def add(self, model, data):
-        self.__data__[model][data["_id"]] = data
+    def push(self, model, oid, data):
+        """
+        Adds or update data on a single caché element
+        """
+        # Initialize model dictionary if it's not already.
+        if not model in self.__data__:
+            self.__data__[model] = dict()
+
+        # Initialize oid dictionary if it's not already.
+        if not oid in self.__data__[model]:
+            self.__data__[model][oid] = dict()
+
+        # Update data
+        self.__data__[model][oid].update(data)
+    
+    def pop(self, model, oids):
+        """
+        Removes one or multiple elements from
+        the caché.
+        """
+        if not isinstance(oids, list):
+            oids = [oids]
+        for oid in oids:
+            self.__data__[model].pop(oid, None)
 
     def clear(self):
+        """
+        Wipes the entire caché
+        """
         self.__data__.clear()
 
-    def persist(self):
+    def persist(self, model, oids, session=None):
+        """
+        Persists to database one or many caché elements;
+        then pops the elements from it.
+        """
         conn = Connection()
-        for model in self.__data__.keys():
-            data = [d for d in self.__data__[model].values()]
-            conn.db[model].insert_many(data, session=self.__session__)
+        if not isinstance(oids, list):
+            oids = [oids]
+        for oid in oids:
+            if oid in self.__data__[model]:
+                data = self.__data__[model][oid]
+                conn.db[model].update_one(
+                    {"_id": oid}, 
+                    {"$set": data}, 
+                    session=session, 
+                    upsert=True)
+        self.pop(model, oids)
+
+    def flush(self, session=None):
+        """
+        Persists all elements in the caché;
+        then wipes all the data in it.
+        """
+        conn = Connection()
+        for model, dict_oids in self.__data__.items():
+            for oid, data in dict_oids.items():
+                conn.db[model].update_one(
+                    {"_id": oid},
+                    {"$set": data}, 
+                    session=session, 
+                    upsert=True)
         self.clear()

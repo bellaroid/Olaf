@@ -11,7 +11,7 @@ class Environment(object):
         self.session =  session
         self.registry = registry
         self.conn =     Connection()
-        self.cache =    DocumentCache(session)
+        self.cache =    DocumentCache()
 
     def __iter__(self):
         return iter(self.registry)
