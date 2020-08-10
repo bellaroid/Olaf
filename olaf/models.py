@@ -143,26 +143,52 @@ class Model(metaclass=ModelMeta):
     def create(self, vals):
         # Perform create access check
         check_access(self._name, "create", self.env.context["uid"])
+        
+        # Make sure x2many assignment does not contain
+        # any forbidden operation.
         for field, value in vals.items():
             if field in self._fields and (
                     isinstance(self._fields[field], One2many) or
                     isinstance(self._fields[field], Many2many)):
-                # Make sure x2many assignment does not contain
-                # any forbidden operation.
                 for item in value:
                     if item[0] in ["write", "purge", "remove", "clear"]:
                         raise ValueError(
                             "Cannot use x2many operation '{}' on create()".format(item[0]))
-        self.validate(vals)
-        new_doc = self._save(insert=True)
-        return new_doc
+
+        # Validate and Flush, return new DocSet
+        raw_data = self.validate(vals)
+
+        # Create two separate dictionaries for handling base and x2many fields
+        base_dict = dict()
+        x2m_dict =  dict()
+
+        # Map provided values to their dictionaries
+        for field_name, value in raw_data.items():
+            if isinstance(self._fields[field_name], Many2many) or \
+                    isinstance(self._fields[field_name], One2many):
+                x2m_dict[field_name] =  value
+            else:
+                base_dict[field_name] = value
+
+        # Load base_dict into write cache
+        self.env.cache.append(self._name, raw_data["_id"], base_dict, "create")
+        self.env.cache.flush()
+        doc = self.__class__(self.env, {"_id": raw_data["_id"]})
+
+        # Load x2many field data into write cache
+        for field_name, value in x2m_dict.items():
+            setattr(doc, field_name, value)
+
+        return doc
+
 
     def write(self, vals):
         """ Write values to the documents in the current set"""
         # Perform write access check
         check_access(self._name, "write", self.env.context["uid"])
-        self.validate(vals, True)
-        self._save()
+        raw_data = self.validate(vals, True)
+        self.env.cache.append(self._name, self.ids(), raw_data)
+        self.env.cache.flush()
 
     def read(self, fields=[]):
         """ Returns a list of dictionaries representing
@@ -342,6 +368,7 @@ class Model(metaclass=ModelMeta):
         """ Ensure a given dict of values passes all
         required field validations for this model
         """
+        raw_data = dict()
         with NoPersist(self):
             if not write:
                 # -- Validating a create operation --
@@ -372,17 +399,18 @@ class Model(metaclass=ModelMeta):
                                 else:
                                     vals[field_name] = None
                     # Let each field validate its value.
-                    setattr(self, field_name, vals[field_name])
+                    raw_data[field_name] = field.__validate__(self, vals[field_name])
             else:
                 # -- Validating a write operation --
                 # Let each field validate its value.
                 for field_name in vals.keys():
                     if field_name in self._fields:
                         if field_name != "_id":
-                            setattr(self, field_name, vals[field_name])
+                            raw_data[field_name] = self._fields[field_name].__validate__(self, vals[field_name])
                         else:
                             raise ValueError(
                                 "'_id' field is readonly once document has been persisted")
+        return raw_data
 
     def ensure_one(self):
         """ Ensures current set contains a single document """

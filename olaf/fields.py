@@ -43,21 +43,11 @@ class BaseField:
         self._string = kwargs.get("string", self.attr)
 
     def __set__(self, instance, value):
-        if value is None and self._required:
-            raise ValueError("Field {} is required".format(self.attr))
-        if hasattr(self, "_setter"):
-            # Get value from custom setter
-            setter = getattr(instance, self._setter)
-            value = setter(value)
-        instance.env.cache.push(
-            instance._name,
-            instance._id,
-            {self.attr: value})
         if getattr(instance, "_implicit_save", True):
-            instance.env.cache.persist(
-                instance._name,
-                instance._id,
-                instance.env.session)
+            value = self.__validate__(instance, value)
+            instance.env.cache.clear()
+            instance.env.cache.append(instance._name, instance.ids(), {self.attr: value})
+            instance.env.cache.flush()
         return None
 
     def __get__(self, instance, owner):
@@ -76,22 +66,28 @@ class BaseField:
                 instance.ensure_one()
             return item.get(attr)
 
+    def __validate__(self, instance, value):
+        if value is None and self._required:
+            raise ValueError("Field {} is required".format(self.attr))
+        if hasattr(self, "_setter"):
+            # Get value from custom setter
+            setter = getattr(instance, self._setter)
+            value = setter(value)
+        return value
+
 
 class Identifier(BaseField):
     """ Field Class for storing Document ObjectIDs
     """
 
-    def __set__(self, instance, value):
+    def __validate__(self, instance, value):
         if not isinstance(value, bson.ObjectId):
             try:
                 value = bson.ObjectId(value)
             except TypeError:
                 raise TypeError(
                     "Cannot convert value of type {} to ObjectId".format(type(value).__name__))
-        instance.env.cache.push(
-            instance._name,
-            value,
-            {self.attr: value})
+        return value
 
 
 class Char(BaseField):
@@ -106,7 +102,7 @@ class Char(BaseField):
                 max_length.__class__.__name__))
         self._max_length = max_length
 
-    def __set__(self, instance, value):
+    def __validate__(self, instance, value):
         if value is not None:
             if not isinstance(value, str):
                 try:
@@ -117,14 +113,14 @@ class Char(BaseField):
             if len(value) > self._max_length:
                 raise ValueError("Value {} exceeds maximum length of {}".format(
                     value, self._max_length))
-        super().__set__(instance, value)
+        return super().__validate__(instance, value)
 
 
 class Integer(BaseField):
     """ Field Class for storing integer numbers
     """
 
-    def __set__(self, instance, value):
+    def __validate__(self, instance, value):
         if value is not None:
             if not isinstance(value, int):
                 try:
@@ -132,14 +128,14 @@ class Integer(BaseField):
                 except ValueError:
                     raise ValueError(
                         "Cannot convert '{}' to integer".format(str(value)))
-        super().__set__(instance, value)
+        return super().__validate__(instance, value)
 
 
 class Boolean(BaseField):
     """ Field Class for storing boolean values
     """
 
-    def __set__(self, instance, value):
+    def __validate__(self, instance, value):
         if value is not None:
             if not isinstance(value, bool):
                 if value in ["false", "0", 0]:
@@ -149,13 +145,13 @@ class Boolean(BaseField):
                 else:
                     raise ValueError(
                         "Cannot convert '{}' to boolean".format(str(value)))
-        super().__set__(instance, value)
+        return super().__validate__(instance, value)
 
 
 class DateTime(BaseField):
     """ Field Class for storing datetime values
     """
-    def __set__(self, instance, value):
+    def __validate__(self, instance, value):
         if value is not None:
             if not isinstance(value, datetime.datetime):
                 try:
@@ -163,7 +159,8 @@ class DateTime(BaseField):
                 except ValueError:
                     raise ValueError(
                         "Cannot convert '{}' to datetime".format(str(value)))
-        super().__set__(instance, value)
+        return super().__validate__(instance, value)
+
 
 class RelationalField(BaseField):
     """ Provides a set of common utilities
@@ -232,12 +229,12 @@ class Many2one(RelationalField):
         cmod = self._get_comodel(instance)
         return cmod.browse(value)
 
-    def __set__(self, instance, value):
+    def __validate__(self, instance, value):
         if value is not None:
             _ = self._get_comodel(instance)
             value = self._ensure_oid(value)
             self._is_comodel_oid(value, instance)
-        super().__set__(instance, value)
+        return super().__validate__(instance, value)
 
 
 class One2many(RelationalField):
@@ -263,6 +260,81 @@ class One2many(RelationalField):
                     self._inversed_by, cmod._name))
         return cmod.search({self._inversed_by: instance._id})
 
+    def __validate__(self, instance, list_tuples):
+        for i, t in enumerate(list_tuples):
+            if t is None:
+                # Treat None assignment as clear
+                t = list_tuples[i] = ("clear",)
+
+            if not isinstance(t, tuple):
+                if t == 'clear':
+                    # Fix wrong singleton tuple
+                    t = list_tuples[i] = ("clear",)
+                else:
+                    raise TypeError(
+                        "One2many field assignments must be done through tuple-list syntax. "
+                        "Check the documentation for further details.")
+
+            if len(t) == 0:
+                raise ValueError("Empty tuple supplied for x2many assignment")
+
+            if t[0] == "create":
+                # Create a new record in the co-model
+                # and assign its 'inversed_by' field to this record.
+                if len(t) != 2:
+                    raise ValueError(
+                        "Invalid tuple length for x2many create assignment")
+                if not isinstance(t[1], dict):
+                    raise TypeError(
+                        "Tuple argument #2 must be dict, got {} instead".format(
+                            t[1].__class__.__name__))
+            elif t[0] == "write":
+                # Update an existing record in the co-model
+                # by assigning its 'inversed_by' field to this record.
+                if len(t) != 3:
+                    raise ValueError(
+                        "Invalid tuple length for x2many write assignment")
+                if not isinstance(t[2], dict):
+                    raise TypeError(
+                        "Tuple argument #2 must be dict, got {} instead".format(
+                            t[2].__class__.__name__))
+            elif t[0] == "purge":
+                # Delete the co-model record
+                if len(t) != 2:
+                    raise ValueError(
+                        "Invalid tuple length for x2many purge assignment")
+            elif t[0] == "remove":
+                # Remove the reference to this record by clearing
+                # the 'inversed_by' field in the co-model record
+                if len(t) != 2:
+                    raise ValueError(
+                        "Invalid tuple length for x2many remove assignment")
+            elif t[0] == "add":
+                # Add a reference to this record by setting
+                # the 'inversed_by' field in the co-model record
+                if len(t) != 2:
+                    raise ValueError(
+                        "Invalid tuple length for x2many add assignment")
+            elif t[0] == "clear":
+                # Set all the references to this record to None
+                if len(t) != 1:
+                    raise ValueError(
+                        "Invalid tuple length for x2many clear assignment")
+            elif t[0] == "replace":
+                # Perform a clear and then add each element of the supplied list
+                if len(t) != 2:
+                    raise ValueError(
+                        "Invalid tuple length for x2many clear assignment")
+                if not isinstance(t[1], list):
+                    raise TypeError(
+                        "Tuple argument #2 must be list, got {} instead".format(
+                            t[1].__class__.__name__))
+            else:
+                raise ValueError(
+                    "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
+        
+        return list_tuples
+
     def __set__(self, instance, list_tuples):
         """ Sets the value of a One2many relationship
 
@@ -285,114 +357,65 @@ class One2many(RelationalField):
         (5, 0, 0)           | ('clear')           | Unlink all (like using (3,ID) for all linked records)
         (6, 0, [IDs])       | ('replace', [OIDs]) | Replace the list of linked IDs (like using (5) then (4,ID) for each ID in the list of IDs)
         """
-        save = getattr(instance, "_implicit_save", True)
-        for value in list_tuples:
-            if value is None:
-                # Treat None assignment as clear
-                value = ("clear",)
+        cmname = self._comodel_name
+        inversed_by = self._inversed_by
+        list_tuples = self.__validate__(instance, list_tuples)
 
-            if not isinstance(value, tuple):
-                if value == 'clear':
-                    # Fix wrong singleton tuple
-                    value = ('clear',)
-                else:
-                    raise TypeError(
-                        "One2many field assignments must be done through tuple-list syntax. "
-                        "Check the documentation for further details.")
-
-            if len(value) == 0:
-                raise ValueError("Empty tuple supplied for x2many assignment")
-
-            if value[0] == "create":
-                # Create a new record in the co-model
-                # and assign its 'inversed_by' field to this record.
-                if len(value) != 2:
-                    raise ValueError(
-                        "Invalid tuple length for x2many create assignment")
-                if not isinstance(value[1], dict):
-                    raise TypeError(
-                        "Tuple argument #2 must be dict, got {} instead".format(
-                            value[1].__class__.__name__))
-                if save:
-                    values = value[1]
-                    values[self._inversed_by] = instance._id
-                    instance.env[self._comodel_name].create(values)
-            elif value[0] == "write":
-                # Update an existing record in the co-model
-                # by assigning its 'inversed_by' field to this record.
-                if len(value) != 3:
-                    raise ValueError(
-                        "Invalid tuple length for x2many write assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if not isinstance(value[2], dict):
-                    raise TypeError(
-                        "Tuple argument #2 must be dict, got {} instead".format(
-                            value[2].__class__.__name__))
-                if save:
-                    values = value[2]
-                    item.write(values)
-            elif value[0] == "purge":
-                # Delete the co-model record
-                if len(value) != 2:
-                    raise ValueError(
-                        "Invalid tuple length for x2many purge assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if save:
-                    item.unlink()
-            elif value[0] == "remove":
-                # Remove the reference to this record by clearing
-                # the 'inversed_by' field in the co-model record
-                if len(value) != 2:
-                    raise ValueError(
-                        "Invalid tuple length for x2many remove assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if save:
-                    item.write({self._inversed_by: None})
-            elif value[0] == "add":
-                # Add a reference to this record by setting
-                # the 'inversed_by' field in the co-model record
-                if len(value) != 2:
-                    raise ValueError(
-                        "Invalid tuple length for x2many add assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if save:
-                    item.write({self._inversed_by: instance._id})
-            elif value[0] == "clear":
-                # Set all the references to this record to None
-                if len(value) != 1:
-                    raise ValueError(
-                        "Invalid tuple length for x2many clear assignment")
-                if save:
-                    instance.env[self._comodel_name].search(
-                        {self._inversed_by: instance._id}).write(
-                            {self._inversed_by: None})
-            elif value[0] == "replace":
-                # Perform a clear and then add each element of the supplied list
-                if len(value) != 2:
-                    raise ValueError(
-                        "Invalid tuple length for x2many clear assignment")
-                if not isinstance(value[1], list):
-                    raise TypeError(
-                        "Tuple argument #2 must be list, got {} instead".format(
-                            value[1].__class__.__name__))
-                if save:
-                    comodel = self._get_comodel(instance)
-                    comodel.search({self._inversed_by: instance._id}
-                                ).write({self._inversed_by: None})
-                    comodel.browse(value[1]).write({self._inversed_by: instance._id})
+        for i, t in enumerate(list_tuples):
+            if not getattr(instance, "_implicit_save", True):
+                # Handle deferred write
+                if t[0] == "create":
+                    instance.env.cache.append(cmname, bson.ObjectId(), t[1])
+                elif t[0] == "write":
+                    instance.env.cache.append(cmname, t[1], t[2])
+                elif t[0] == "purge":
+                    instance.env.cache.append(cmname, t[1], {}, "delete")
+                elif t[0] == "remove":
+                    instance.env.cache.append(cmname, t[1], {inversed_by: None})
+                elif t[0] == "add":
+                    instance.env.cache.append(cmname, t[1], {inversed_by: instance._id})
+                elif t[0] == "clear":
+                    docset = instance.env[self._comodel_name].search({inversed_by: instance._id})
+                    for item in docset:
+                        instance.env.cache.append(cmname, item._id, {inversed_by: None})
+                elif t[0] == "replace":
+                    docset = instance.env[self._comodel_name].search({inversed_by: instance._id})
+                    for item in docset:
+                        instance.env.cache.append(cmname, item._id, {inversed_by: None})
+                    new_docset = instance.env[self._comodel_name].browse(t[1])
+                    for item in new_docset:
+                        instance.env.cache.append(cmname, item._id, {inversed_by: instance._id})
             else:
-                raise ValueError(
-                    "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
-        if not save:
-            instance.env.cache.push(
-                instance._name,
-                instance._id,
-                {self.attr: list_tuples})
-
+                # Handle active write
+                if t[0] == "create":
+                    t[1][inversed_by] = instance._id
+                    instance.env[self._comodel_name].create(t[1])
+                elif t[0] == "write":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    item.write(t[2])
+                elif t[0] == "purge":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    item.unlink()
+                elif t[0] == "remove":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    item.write({inversed_by: None})
+                elif t[0] == "add":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    item.write({inversed_by: instance._id})
+                elif t[0] == "clear":
+                    instance.env[self._comodel_name].search(
+                        {inversed_by: instance._id}).write(
+                            {inversed_by: None})
+                elif t[0] == "replace":
+                    comodel = self._get_comodel(instance)
+                    comodel.search({inversed_by: instance._id}
+                                ).write({inversed_by: None})
+                    comodel.browse(t[1]).write({inversed_by: instance._id})
+                    
 
 class Many2many(RelationalField):
     """ A many2many relationship works by creating an intermediate
@@ -427,7 +450,6 @@ class Many2many(RelationalField):
             mod = ModelMeta("Model", (), model_dict)
             instance.env.registry.add(mod)
 
-
     def __get__(self, instance, owner):
         """ Search for relationships in the intermediate model
         containing references to the instance id, and with these
@@ -442,116 +464,141 @@ class Many2many(RelationalField):
         return instance.env[self._comodel_name].browse(
             [getattr(rel, self._field_b)._id for rel in rels])
 
-    def __set__(self, instance, list_tuples):
-        """ A patched version of the O2M __set__ descriptor.
-        """
-        save = getattr(instance, "_implicit_save", True)
-        for value in list_tuples:
-            if value is None:
-                # Treat None assignment as clear
-                value = ("clear",)
+    def __validate__(self, instance, list_tuples):
 
-            if not isinstance(value, tuple):
-                if value == 'clear':
+        # Create intermediate model if not present
+        self._ensure_intermediate_model(instance)
+        
+        for i, t in enumerate(list_tuples):
+            
+            if t is None:
+                # Treat None assignment as clear
+                t = list_tuples[i] = ("clear",)
+
+            if not isinstance(t, tuple):
+                if t == 'clear':
                     # Fix wrong singleton tuple
-                    value = ('clear',)
+                    t = list_tuples[i] = ("clear",)
                 else:
                     raise TypeError(
                         "Many2many field assignments must be done through tuple-list syntax. "
                         "Check the documentation for further details.")
 
-            # Create intermediate model if not present
-            self._ensure_intermediate_model(instance)
-
-            if value[0] == "create":
-                # Create a new record in the co-model and add virtual relationship
-                if len(value) != 2:
+            # Parameter validation
+            if t[0] == "create":
+                if len(t) != 2:
                     raise ValueError(
                         "Invalid tuple length for x2many create assignment")
-                if not isinstance(value[1], dict):
+                if not isinstance(t[1], dict):
                     raise TypeError(
                         "Tuple argument #2 must be dict, got {} instead".format(
-                            value[1].__class__.__name__))
-                
-                values = value[1]
-                if save:
-                    rec = instance.env[self._comodel_name].create(values)
-                    instance.env[self._relation].create(
-                        {self._field_a: instance._id, self._field_b: rec._id})
-            elif value[0] == "write":
-                # Update an existing record in the co-model
-                # by assigning its 'inversed_by' field to this record.
-                if len(value) != 3:
+                            t[1].__class__.__name__))                
+            elif t[0] == "write":
+                if len(t) != 3:
                     raise ValueError(
                         "Invalid tuple length for x2many write assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if not isinstance(value[2], dict):
+                if not isinstance(t[2], dict):
                     raise TypeError(
                         "Tuple argument #2 must be dict, got {} instead".format(
-                            value[2].__class__.__name__))
-                if save:
-                    values = value[2]
-                    item.write(values)
-            elif value[0] == "purge":
-                # Delete the co-model record
-                if len(value) != 2:
+                            t[2].__class__.__name__))
+            elif t[0] == "purge":
+                if len(t) != 2:
                     raise ValueError(
                         "Invalid tuple length for x2many purge assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if save:
-                    item.unlink()
-                    instance.env[self._relation].search({self._field_b: oid}).unlink()
-            elif value[0] == "remove":
-                # Remove the reference to this record by clearing
-                # the 'inversed_by' field in the co-model record
-                if len(value) != 2:
+            elif t[0] == "remove":
+                if len(t) != 2:
                     raise ValueError(
                         "Invalid tuple length for x2many remove assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if save:
-                    instance.env[self._relation].search({self._field_b: oid}).unlink()
-            elif value[0] == "add":
-                # Add a reference to this record by setting
-                # the 'inversed_by' field in the co-model record
-                if len(value) != 2:
+            elif t[0] == "add":
+                if len(t) != 2:
                     raise ValueError(
                         "Invalid tuple length for x2many add assignment")
-                oid = self._ensure_oid(value[1])
-                item = self._is_comodel_oid(oid, instance)
-                if save:
-                    instance.env[self._relation].create(
-                        {self._field_a: instance._id, self._field_b: item._id})
-            elif value[0] == "clear":
-                # Set all the references to this record to None
-                if len(value) != 1:
+            elif t[0] == "clear":
+                if len(t) != 1:
                     raise ValueError(
                         "Invalid tuple length for x2many clear assignment")
-                if save:
-                    instance.env[self._relation].search({self._field_a: instance._id}).unlink()
-            elif value[0] == "replace":
-                # Perform a clear and then add each element of the supplied list
-                if len(value) != 2:
+            elif t[0] == "replace":
+                if len(t) != 2:
                     raise ValueError(
                         "Invalid tuple length for x2many clear assignment")
-                if not isinstance(value[1], list):
+                if not isinstance(t[1], list):
                     raise TypeError(
                         "Tuple argument #2 must be list, got {} instead".format(
-                            value[1].__class__.__name__))
-                if save:
-                    instance.env[self._relation].search({self._field_a: instance._id}).unlink()
-                    for oid in value[1]:
-                        oid = self._ensure_oid(oid)
-                        _ = self._is_comodel_oid(oid, instance)
-                        instance.env[self._relation].create(
-                            {self._field_a: instance._id, self._field_b: oid})
+                            t[1].__class__.__name__))
             else:
                 raise ValueError(
                     "Tuple #1 argument must be 'create', 'write', 'purge', 'remove', 'add', 'clear' or 'replace'")
-        if not save:                    
-            instance.env.cache.push(
-                instance._name,
-                instance._id,
-                {self.attr: list_tuples})
+        
+        return list_tuples
+
+    def __set__(self, instance, list_tuples):
+        """ A patched version of the O2M __validate__ descriptor.
+        """
+        fld_a =     self._field_a
+        fld_b =     self._field_b
+        cmname =    self._comodel_name
+        relname =   self._relation
+
+        list_tuples = self.__validate__(instance, list_tuples)
+        
+        for _, t in enumerate(list_tuples):
+            if not getattr(instance, "_implicit_save", True):
+                # Handle deferred write
+                if t[0] == "create":
+                    oid = bson.ObjectId()
+                    instance.env.cache.append(cmname, oid, t[1])
+                    instance.env.cache.append(relname, bson.ObjectId(), {fld_a: instance._id, fld_b: oid})
+                elif t[0] == "write":
+                    instance.env.cache.append(cmname, t[1], t[2])
+                elif t[0] == "purge":
+                    rel = instance.env[relname].search({fld_a: instance._id, fld_b: oid})
+                    instance.env.cache.append(relname, rel._id, {}, "delete")
+                    instance.env.cache.append(cmname, t[1], {}, "delete")
+                elif t[0] == "remove":
+                    rel = instance.env[relname].search({fld_a: instance._id, fld_b: oid})
+                    instance.env.cache.append(relname, rel._id, {}, "delete")
+                elif t[0] == "add":
+                    instance.env.cache.append(relname, bson.ObjectId(), {fld_a: instance._id, fld_b: t[1]})
+                elif t[0] == "clear":
+                    docset = instance.env[relname].search({fld_a: instance._id})
+                    for item in docset:
+                        instance.env.cache.append(cmname, item._id, {}, "delete")
+                elif t[0] == "replace":
+                    docset = instance.env[relname].search({fld_a: instance._id})
+                    for item in docset:
+                        instance.env.cache.append(cmname, item._id, {}, "delete")
+                    for oid in t[1]:
+                        instance.env.cache.append(relname, bson.ObjectId(), {fld_a: instance._id, fld_b: oid})
+            else:
+                # Handle active write
+                if t[0] == "create":
+                    rec = instance.env[cmname].create(t[1])
+                    instance.env[relname].create(
+                        {fld_a: instance._id, fld_b: rec._id})
+                elif t[0] == "write":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    item.write(t[2])
+                elif t[0] == "purge":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    item.unlink()
+                    instance.env[relname].search({fld_b: oid}).unlink()
+                elif t[0] == "remove":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    instance.env[relname].search({fld_b: oid}).unlink()
+                elif t[0] == "add":
+                    oid = self._ensure_oid(t[1])
+                    item = self._is_comodel_oid(oid, instance)
+                    instance.env[relname].create(
+                        {fld_a: instance._id, fld_b: item._id})
+                elif t[0] == "clear":
+                    instance.env[relname].search({fld_a: instance._id}).unlink()
+                elif t[0] == "replace":
+                    instance.env[relname].search({fld_a: instance._id}).unlink()
+                    for oid in t[1]:
+                        oid = self._ensure_oid(oid)
+                        _ = self._is_comodel_oid(oid, instance)
+                        instance.env[relname].create(
+                            {fld_a: instance._id, fld_b: oid})
