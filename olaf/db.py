@@ -149,6 +149,10 @@ class DocumentCache():
                 "Illegal opcode '{}'. "
                 "Expected 'create', 'write' or 'delete'.".format(op))
 
+        # Avoid empty writes
+        if op == "write" and not bool(data):
+            return
+
         # Convert oids into list
         if not isinstance(oids, list):
             oids = [oids]
@@ -167,20 +171,24 @@ class DocumentCache():
         then wipes all the data in it.
         """
         conn = Connection()
-        for tpl in self.__queue__:
-            modname = tpl[0]
-            oids = tpl[1]
-            if tpl[2] == "create":
-                conn.db[modname].insert_one(
-                    tpl[3],
-                    session=self.__session__)
-            elif tpl[2] == "write":
-                conn.db[modname].update_many(
-                    {"_id": {"$in": oids}},
-                    {"$set": tpl[3]},
-                    session=self.__session__)
-            elif tpl[2] == "delete":
-                conn.db[modname].delete_many(
-                    {"_id": {"$in": oids}}, 
-                    session=self.__session__)
+        try:
+            for tpl in self.__queue__:
+                modname = tpl[0]
+                oids = tpl[1]
+                if tpl[2] == "create":
+                    conn.db[modname].insert_one(
+                        tpl[3],
+                        session=self.__session__)
+                elif tpl[2] == "write":
+                    conn.db[modname].update_many(
+                        {"_id": {"$in": oids}},
+                        {"$set": tpl[3]},
+                        session=self.__session__)
+                elif tpl[2] == "delete":
+                    conn.db[modname].delete_many(
+                        {"_id": {"$in": oids}}, 
+                        session=self.__session__)
+        except Exception as e:
+            self.clear()
+            raise
         self.clear()

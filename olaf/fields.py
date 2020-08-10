@@ -361,7 +361,7 @@ class One2many(RelationalField):
         inversed_by = self._inversed_by
         list_tuples = self.__validate__(instance, list_tuples)
 
-        for i, t in enumerate(list_tuples):
+        for _, t in enumerate(list_tuples):
             if not getattr(instance, "_implicit_save", True):
                 # Handle deferred write
                 if t[0] == "create":
@@ -375,21 +375,21 @@ class One2many(RelationalField):
                 elif t[0] == "add":
                     instance.env.cache.append(cmname, t[1], {inversed_by: instance._id})
                 elif t[0] == "clear":
-                    docset = instance.env[self._comodel_name].search({inversed_by: instance._id})
+                    docset = instance.env[cmname].search({inversed_by: instance._id})
                     for item in docset:
                         instance.env.cache.append(cmname, item._id, {inversed_by: None})
                 elif t[0] == "replace":
-                    docset = instance.env[self._comodel_name].search({inversed_by: instance._id})
+                    docset = instance.env[cmname].search({inversed_by: instance._id})
                     for item in docset:
                         instance.env.cache.append(cmname, item._id, {inversed_by: None})
-                    new_docset = instance.env[self._comodel_name].browse(t[1])
+                    new_docset = instance.env[cmname].browse(t[1])
                     for item in new_docset:
                         instance.env.cache.append(cmname, item._id, {inversed_by: instance._id})
             else:
                 # Handle active write
                 if t[0] == "create":
                     t[1][inversed_by] = instance._id
-                    instance.env[self._comodel_name].create(t[1])
+                    instance.env[cmname].create(t[1])
                 elif t[0] == "write":
                     oid = self._ensure_oid(t[1])
                     item = self._is_comodel_oid(oid, instance)

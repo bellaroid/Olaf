@@ -181,14 +181,32 @@ class Model(metaclass=ModelMeta):
 
         return doc
 
-
     def write(self, vals):
         """ Write values to the documents in the current set"""
         # Perform write access check
         check_access(self._name, "write", self.env.context["uid"])
         raw_data = self.validate(vals, True)
-        self.env.cache.append(self._name, self.ids(), raw_data)
+
+        # Create two separate dictionaries for handling base and x2many fields
+        base_dict = dict()
+        x2m_dict =  dict()
+
+        # Map provided values to their dictionaries
+        for field_name, value in raw_data.items():
+            if isinstance(self._fields[field_name], Many2many) or \
+                    isinstance(self._fields[field_name], One2many):
+                x2m_dict[field_name] =  value
+            else:
+                base_dict[field_name] = value
+
+        # Load base_dict into write cache
+        self.env.cache.append(self._name, self.ids(), base_dict, "write")
+        # Load x2many field data into write cache
+        for field_name, value in x2m_dict.items():
+            setattr(self, field_name, value)
+
         self.env.cache.flush()
+        return
 
     def read(self, fields=[]):
         """ Returns a list of dictionaries representing
@@ -375,9 +393,15 @@ class Model(metaclass=ModelMeta):
                 # We've got to make sure required fields
                 # are present and default values are assigned
                 # if they were omitted by the user.
+                
+                # Force _id to be validated first
+                raw_data["_id"] = self._fields["_id"].__validate__(self, vals.get("_id", None))
 
                 # Check each model field
                 for field_name, field in self._fields.items():
+                    # Skip _id as it was previously validated
+                    if field_name == "_id":
+                        continue
                     # If value is not present among vals
                     if field_name not in vals:
                         # Treat x2many assignments as empty lists
