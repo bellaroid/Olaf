@@ -188,7 +188,7 @@ class DocumentCache():
                     conn.db[modname].delete_many(
                         {"_id": {"$in": oids}}, 
                         session=self.__session__)
-        except Exception as e:
+        except Exception:
             self.clear()
             raise
         self.clear()
