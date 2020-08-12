@@ -466,9 +466,6 @@ class Many2many(RelationalField):
 
     def __validate__(self, instance, list_tuples):
 
-        # Create intermediate model if not present
-        self._ensure_intermediate_model(instance)
-        
         for i, t in enumerate(list_tuples):
             
             if t is None:
@@ -540,6 +537,9 @@ class Many2many(RelationalField):
         relname =   self._relation
 
         list_tuples = self.__validate__(instance, list_tuples)
+        
+        # Create intermediate model if not present
+        self._ensure_intermediate_model(instance)
         
         for _, t in enumerate(list_tuples):
             if not getattr(instance, "_implicit_save", True):
