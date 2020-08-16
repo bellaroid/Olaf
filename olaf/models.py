@@ -728,19 +728,19 @@ class Model(metaclass=ModelMeta):
                 for col_index in m2o_meta:
                     # Generate field names for current m2o field
                     m2o_fields.append("/".join(import_fields[col_index][1:]))
-                for offset in range(0, len(slmatrix[0])):
+                for offset in range(0, len(slmatrix)):
                     # Generate m2o data submatrix
                     m2o_data.append([slmatrix[offset][col_index]
                                     for col_index in m2o_meta])
                 # Import and get ID
-                outcome = self.env[self._fields[m2o_field]._comodel_name]._load(
+                out_ids, out_errs = self.env[self._fields[m2o_field]._comodel_name]._load(
                     m2o_fields, m2o_data)
-                if len(outcome["errors"]) > 0:
-                    for err in outcome["errors"]:
+                if len(out_errs) > 0:
+                    for err in out_errs:
                         errors.append(err)
                     continue
-                if len(outcome["ids"]) == 1:
-                    simple_data[m2o_field] = outcome["ids"][0]
+                if len(out_ids) == 1:
+                    simple_data[m2o_field] = out_ids[0]
 
             # Reference parent record if provided
             if parent_field and parent_oid:
@@ -772,20 +772,20 @@ class Model(metaclass=ModelMeta):
                 for col_index in o2m_meta:
                     # Generate field names for current m2o field
                     o2m_fields.append("/".join(import_fields[col_index][1:]))
-                for offset in range(0, len(slmatrix[0])):
+                for offset in range(0, len(slmatrix)):
                     # Generate o2m data submatrix
                     o2m_data.append([slmatrix[offset][col_index]
                                     for col_index in o2m_meta])
                 # Import. New documents will reference current one
                 # thanks to the parent_field and parend_id params.
                 parent_field = self._fields[o2m_field]
-                outcome = self.env[self._fields[o2m_field]._comodel_name]._load(
+                _, out_errs = self.env[self._fields[o2m_field]._comodel_name]._load(
                     o2m_fields, 
                     o2m_data, 
                     parent_field=parent_field,
                     parent_oid=oid)
-                if len(outcome["errors"]) > 0:
-                    for err in outcome["errors"]:
+                if len(out_errs) > 0:
+                    for err in out_errs:
                         errors.append(err)
                     continue
 
@@ -796,25 +796,25 @@ class Model(metaclass=ModelMeta):
                 for col_index in m2m_meta:
                     # Generate field names for current m2o field
                     m2m_fields.append("/".join(import_fields[col_index][1:]))
-                for offset in range(0, len(slmatrix[0])):
+                for offset in range(0, len(slmatrix)):
                     # Generate m2m data submatrix
                     m2m_data.append([slmatrix[offset][col_index]
                                     for col_index in m2m_meta])
                 # Import.
-                outcome = self.env[self._fields[m2m_field]._comodel_name]._load(
+                out_ids, out_errs = self.env[self._fields[m2m_field]._comodel_name]._load(
                     m2m_fields, 
                     m2m_data)
-                if len(outcome["errors"]) > 0:
-                    for err in outcome["errors"]:
+                if len(out_errs) > 0:
+                    for err in out_errs:
                         errors.append(err)
                     continue
-                if len(outcome["ids"]) > 0:
+                if len(out_ids) > 0:
                     m2m_field = self._fields[m2m_field]
                     rel_name =      m2m_field._relation
                     field_a =       m2m_field._field_a
                     field_b =       m2m_field._field_b
                     items = list()
-                    for m2m_oid in outcome["ids"]:
+                    for m2m_oid in out_ids:
                         items.append({
                             "_id": ObjectId(),
                             field_a: oid,

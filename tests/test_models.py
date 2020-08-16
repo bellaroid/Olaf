@@ -169,12 +169,13 @@ def test_load():
     tm1 = self.env["test.models.model"]
     
     # Test importation with external ids
-    tm1.load(
-        ["id", "name", "age"], 
+    outcome = tm1.load(
+        ["id", "name", "age", "cascade_id/id", "cascade_id/name"], 
         [
-            ["testload1", "name1A", 1], 
-            ["testload2", "name2A", 2]])
+            ["testload1", "name1A", 1, "related1", "related1_name"], 
+            ["testload2", "name2A", 2, "related2", "related2_name"]])
     
+    assert(len(outcome["errors"]) == 0)
     assert(tm1.get("testload1").name == "name1A")
     assert(tm1.get("testload2").name == "name2A")
 
