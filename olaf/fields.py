@@ -46,7 +46,7 @@ class BaseField:
         if getattr(instance, "_implicit_save", True):
             value = self.__validate__(instance, value)
             instance.env.cache.clear()
-            instance.env.cache.append(instance._name, instance.ids(), {self.attr: value})
+            instance.env.cache.append("write", instance._name, instance.ids(), {self.attr: value})
             instance.env.cache.flush()
         return None
 
@@ -365,26 +365,26 @@ class One2many(RelationalField):
             if not getattr(instance, "_implicit_save", True):
                 # Handle deferred write
                 if t[0] == "create":
-                    instance.env.cache.append(cmname, bson.ObjectId(), t[1])
+                    instance.env.cache.append("write", cmname, [bson.ObjectId()], t[1])
                 elif t[0] == "write":
-                    instance.env.cache.append(cmname, t[1], t[2])
+                    instance.env.cache.append("write", cmname, t[1], t[2])
                 elif t[0] == "purge":
-                    instance.env.cache.append(cmname, t[1], {}, "delete")
+                    instance.env.cache.append("delete", cmname, t[1])
                 elif t[0] == "remove":
-                    instance.env.cache.append(cmname, t[1], {inversed_by: None})
+                    instance.env.cache.append("write", cmname, t[1], {inversed_by: None})
                 elif t[0] == "add":
-                    instance.env.cache.append(cmname, t[1], {inversed_by: instance._id})
+                    instance.env.cache.append("write", cmname, t[1], {inversed_by: instance._id})
                 elif t[0] == "clear":
                     docset = instance.env[cmname].search({inversed_by: instance._id})
                     for item in docset:
-                        instance.env.cache.append(cmname, item._id, {inversed_by: None})
+                        instance.env.cache.append("write", cmname, item._id, {inversed_by: None})
                 elif t[0] == "replace":
                     docset = instance.env[cmname].search({inversed_by: instance._id})
                     for item in docset:
-                        instance.env.cache.append(cmname, item._id, {inversed_by: None})
+                        instance.env.cache.append("write", cmname, item._id, {inversed_by: None})
                     new_docset = instance.env[cmname].browse(t[1])
                     for item in new_docset:
-                        instance.env.cache.append(cmname, item._id, {inversed_by: instance._id})
+                        instance.env.cache.append("write", cmname, item._id, {inversed_by: instance._id})
             else:
                 # Handle active write
                 if t[0] == "create":
@@ -546,29 +546,29 @@ class Many2many(RelationalField):
                 # Handle deferred write
                 if t[0] == "create":
                     oid = bson.ObjectId()
-                    instance.env.cache.append(cmname, oid, t[1])
-                    instance.env.cache.append(relname, bson.ObjectId(), {fld_a: instance._id, fld_b: oid})
+                    instance.env.cache.append("write", cmname, oid, t[1])
+                    instance.env.cache.append("write", relname, bson.ObjectId(), {fld_a: instance._id, fld_b: oid})
                 elif t[0] == "write":
-                    instance.env.cache.append(cmname, t[1], t[2])
+                    instance.env.cache.append("write", cmname, t[1], t[2])
                 elif t[0] == "purge":
                     rel = instance.env[relname].search({fld_a: instance._id, fld_b: oid})
-                    instance.env.cache.append(relname, rel._id, {}, "delete")
-                    instance.env.cache.append(cmname, t[1], {}, "delete")
+                    instance.env.cache.append("delete", relname, rel._id)
+                    instance.env.cache.append("delete", cmname, t[1])
                 elif t[0] == "remove":
                     rel = instance.env[relname].search({fld_a: instance._id, fld_b: oid})
-                    instance.env.cache.append(relname, rel._id, {}, "delete")
+                    instance.env.cache.append("delete", relname, rel._id, {})
                 elif t[0] == "add":
-                    instance.env.cache.append(relname, bson.ObjectId(), {fld_a: instance._id, fld_b: t[1]})
+                    instance.env.cache.append("write", relname, bson.ObjectId(), {fld_a: instance._id, fld_b: t[1]})
                 elif t[0] == "clear":
                     docset = instance.env[relname].search({fld_a: instance._id})
                     for item in docset:
-                        instance.env.cache.append(cmname, item._id, {}, "delete")
+                        instance.env.cache.append("delete", cmname, item._id)
                 elif t[0] == "replace":
                     docset = instance.env[relname].search({fld_a: instance._id})
                     for item in docset:
-                        instance.env.cache.append(cmname, item._id, {}, "delete")
+                        instance.env.cache.append("delete", cmname, item._id)
                     for oid in t[1]:
-                        instance.env.cache.append(relname, bson.ObjectId(), {fld_a: instance._id, fld_b: oid})
+                        instance.env.cache.append("write", relname, bson.ObjectId(), {fld_a: instance._id, fld_b: oid})
             else:
                 # Handle active write
                 if t[0] == "create":

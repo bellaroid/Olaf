@@ -140,40 +140,56 @@ class Model(metaclass=ModelMeta):
         """ Return the amount of documents in the current set """
         return conn.db[self._name].count_documents(self._query, session=self.env.session)
 
-    def create(self, vals):
+    def create(self, vals_list):
         # Perform create access check
         check_access(self._name, "create", self.env.context["uid"])
+
+        # Convert vals to list if a dict was provided
+        if isinstance(vals_list, dict):
+            vals_list = [vals_list]
+
+        # For collecting inserted ids
+        ids = list()
+        docs = list()
         
-        # Make sure x2many assignment does not contain
-        # any forbidden operation.
-        for field, value in vals.items():
-            if field in self._fields and (
-                    isinstance(self._fields[field], One2many) or
-                    isinstance(self._fields[field], Many2many)):
-                for item in value:
-                    if item[0] in ["write", "purge", "remove", "clear"]:
-                        raise ValueError(
-                            "Cannot use x2many operation '{}' on create()".format(item[0]))
+        for vals in vals_list:
+            # Make sure x2many assignment does not contain
+            # any forbidden operation.
+            for field, value in vals.items():
+                if field in self._fields and (
+                        isinstance(self._fields[field], One2many) or
+                        isinstance(self._fields[field], Many2many)):
+                    for item in value:
+                        if item[0] in ["write", "purge", "remove", "clear"]:
+                            raise ValueError(
+                                "Cannot use x2many operation '{}' on create()".format(item[0]))
 
-        # Validate and Flush, return new DocSet
-        raw_data = self.validate(vals)
+            # Validate and Flush, return new DocSet
+            raw_data = self.validate(vals)
 
-        # Create two separate dictionaries for handling base and x2many fields
-        base_dict = dict()
-        x2m_dict =  dict()
+            # Create two separate dictionaries for handling base and x2many fields
+            base_dict = dict()
+            x2m_dict =  dict()
 
-        # Map provided values to their dictionaries
-        for field_name, value in raw_data.items():
-            if isinstance(self._fields[field_name], Many2many) or \
-                    isinstance(self._fields[field_name], One2many):
-                x2m_dict[field_name] =  value
-            else:
-                base_dict[field_name] = value
+            # Map provided values to their dictionaries
+            for field_name, value in raw_data.items():
+                if isinstance(self._fields[field_name], Many2many) or \
+                   isinstance(self._fields[field_name], One2many):
+                    x2m_dict[field_name] =  value
+                else:
+                    base_dict[field_name] = value
 
-        # Load base_dict into write cache
-        self.env.cache.append(self._name, raw_data["_id"], base_dict, "create")
+            # Append to buffer lists
+            ids.append(base_dict["_id"])
+            docs.append(base_dict)
+        
+        # Load base_dict into write cache & flush caché
+        if len(docs) == 1:
+            docs = docs[0]
+
+        self.env.cache.append("create", self._name, None, docs)
         self.env.cache.flush()
-        doc = self.__class__(self.env, {"_id": raw_data["_id"]})
+        doc = self.__class__(self.env, {"_id": {"$in": ids}})
 
         # Load x2many field data into write cache
         for field_name, value in x2m_dict.items():
@@ -200,7 +216,8 @@ class Model(metaclass=ModelMeta):
                 base_dict[field_name] = value
 
         # Load base_dict into write cache
-        self.env.cache.append(self._name, self.ids(), base_dict, "write")
+        self.env.cache.append("write", self._name, self.ids(), base_dict)
+        
         # Load x2many field data into write cache
         for field_name, value in x2m_dict.items():
             setattr(self, field_name, value)
@@ -485,6 +502,17 @@ class Model(metaclass=ModelMeta):
 
     def load(self, fields, data):
         """ A recursive data loader"""
+        ids, errors = self._load(fields, data)
+        if len(errors) > 0:
+            self.env.cache.clear()
+            return {"ids": [], "errors": errors }
+        self.env.cache.flush()
+        return {"ids": ids, "errors": errors }
+
+    def _load(self, fields, dataset, parent_field=None, parent_oid=None):
+        """
+        Loads massive data into a model.
+        """
 
         def _generate_metadata(import_fields):
             """ Generate field metadata dictionary and 
@@ -497,7 +525,8 @@ class Model(metaclass=ModelMeta):
             meta = {
                 "base": dict(),
                 "m2o":  dict(),
-                "o2m":  dict()
+                "o2m":  dict(),
+                "m2m":  dict(),
             }
 
             for index, field in enumerate(import_fields):
@@ -508,239 +537,297 @@ class Model(metaclass=ModelMeta):
                 # Get field instance
                 field_inst = self._fields.get(field[0], None)
 
-                # Generate field metadata and simplified field list
+                # Generate field metadata,
+                # keeping record of indices 
+                # assigned to each field
                 if isinstance(field_inst, Many2one):
                     if field[0] not in meta["m2o"]:
-                        meta["m2o"][field[0]] = {"original": []}
-                    if field[0] not in simple_fields:
-                        simple_fields.append(field[0])
-                        meta["m2o"][field[0]]["new"] = simple_fields.index(
-                            field[0])
-                    meta["m2o"][field[0]]["original"].append(index)
+                        meta["m2o"][field[0]] = []
+                    meta["m2o"][field[0]].append(index)
                 elif isinstance(field_inst, One2many):
                     if field[0] not in meta["o2m"]:
-                        meta["o2m"][field[0]] = {"original": []}
-                    meta["o2m"][field[0]]["original"].append(index)
+                        meta["o2m"][field[0]] = []
+                    meta["o2m"][field[0]].append(index) 
                 elif isinstance(field_inst, Many2many):
-                    logger.warning("Many2many Importation not implemented")
+                    if field[0] not in meta["m2m"]:
+                        meta["m2m"][field[0]] = []
+                    meta["m2m"][field[0]].append(index)
                 else:
+                    if field[0] == "id":
+                        continue
                     if field[0] not in meta["base"]:
-                        meta["base"][field[0]] = {"original": [index]}
-                    if field[0] in simple_fields:
-                        raise("Base field[0] '{}' is repeated in column header".format(field[0]))
-                    simple_fields.append(field[0])
-                    meta["base"][field[0]]["new"] = simple_fields.index(field[0])
+                        meta["base"][field[0]] = [index]
+            
+            return meta
 
-            return meta, simple_fields
+        def _slice_data(data, meta_base_fields):
+            """
+            Returns a sliced-by-document version
+            of the original data matrix.
+            """ 
 
-        logger.debug("Importing Data -- {} - {}".format(self._name, fields))
+            idx = -1
+            data_length = len(dataset)
+            result = list()
 
+            # Loop over data
+            while idx < data_length - 1:
+
+                # Increment index
+                idx += 1
+
+                # Read row in current index
+                row_data = data[idx]
+
+                # If row does not contain any data, skip
+                if all("" == d for d in row_data):
+                    continue
+
+                # Verify row maximum span
+                rowspan = 1
+                while True:
+                    if idx + rowspan >= data_length:
+                        # End of dataset reached
+                        break
+
+                    # Get next row, only basefields (no m2o nor o2m)
+                    next_row = data[idx + rowspan]
+                    for _, base_meta in meta_base_fields.items():
+                        for i in base_meta:
+                            next_row_data = [next_row[i]]
+
+                    # Check if the next row basefields are all empty
+                    if all("" == d for d in next_row_data):
+                        rowspan += 1
+                    else:
+                        break
+
+                # Rowspan should now indicate the amount of rows required
+                # for a single document. Create a slice of
+                result.append(data[idx:idx+rowspan])
+
+            return result
+
+        def _resolve_insert_update(row, fields):
+            """
+            Given the first row of a submatrix and 
+            all the requested fields, determine wether
+            document requires a "create" or "write" operation.
+            Return a string with any of those outcomes,
+            and the computed ObjectId
+            """
+            if "id" in fields:
+                # id field might have been provided
+                ext_id = row[fields.index("id")]
+                if ext_id and ext_id != "":
+                    # id was provided, 
+                    # find or create base.model.data entry
+                    moddata = self.env["base.model.data"].search({"name":ext_id})
+                    if moddata:
+                        # existing model data found
+                        # get the resource oid
+                        op = "write"
+                        oid = moddata.res_id # pylint: disable=no-member
+                    else:
+                        # model data not found,
+                        # generate entry
+                        op = "create"
+                        oid = ObjectId()
+                        self.env.cache.append(
+                            "create",
+                            "base.model.data",
+                            None,
+                            {
+                                "_id": ObjectId(),
+                                "name": ext_id,
+                                "model": self._name,
+                                "res_id": oid
+                            }
+                        )
+                else:
+                    # id is present in fields
+                    # but was not provided for
+                    # the current document
+                    op = "create"
+                    oid = ObjectId()
+                    self.env.cache.append(
+                        "create",
+                        "base.model.data",
+                        None,
+                        {
+                            "_id": ObjectId(),
+                            "name": "__import__.{}".format(str(oid)),
+                            "model": self._name,
+                            "res_id": oid
+                        },
+                    )
+            else:
+                # id is not present among
+                # fields, generate generic
+                # model data entry
+                op = "create"
+                oid = ObjectId()
+                self.env.cache.append(
+                    "create",
+                    "base.model.data",
+                    None,
+                    {
+                        "_id": ObjectId(),
+                        "name": "__import__.{}".format(str(oid)),
+                        "model": self._name,
+                        "res_id": oid
+                    }
+                )
+            
+            return op, oid
+
+        # Initialize results
         ids = []
         errors = []
 
+        # Parse list of fields.
+        # Split strings containing slashes.
+        # Result will be a list of lists of strings.
         import_fields = [field.split("/") for field in fields]
         # >>> [["id"], ["field_a"], ["field_b", "subfield_a"], ["field_b", "subfield_b"]]
 
-        # A simplified matrix reducing M2O's into a single field
-        # and not including O2M nor o2m.
-        simple_data = list()
-
+        # Take first element of each string-list
+        # in order to create a sanitized list of fields.
         norm_fields = [field[0] for field in import_fields]
         # >>> ["id", "field_a", "field_b"]
 
-        # Run sanity check before continuing
+        # Also, make sure provided fields belong to the current model.
+        # (ignore 'id' if provided)
         for field in norm_fields:
             if field not in self._fields and field != "id":
                 raise KeyError(
                     "Field '{}' not found in model '{}'".format(field, self._name))
-
+        
         # Get metadata and simplified list
-        meta, simple_fields = _generate_metadata(import_fields)
+        meta = _generate_metadata(import_fields)
 
-        if len(meta["base"].items()) == 0:
-            raise ValueError(
-                "Import operation requires at least one base field to be included among the headers")
+        # Slice data matrix into submatrices
+        sliced_data = _slice_data(dataset, meta["base"])
 
-        idx = -1
-        data_length = len(data)
+        for slmatrix in sliced_data:
+            # Initialize Simplified Data Dictionary
+            # This should contain MongoDB-ready data.
+            simple_data = dict()
 
-        # Loop over data
-        while idx < data_length - 1:
-
-            # Increment index
-            idx += 1
-
-            # Current row
-            row_data = data[idx]
-
-            # Make sure row isn't empty
-            if all("" == d for d in row_data):
-                continue
-
-            # Prepare simplified data row
-            simple_data_row = [None] * len(simple_fields)
-
-            # Verify row maximum span
-            rowspan = 1
-            while True:
-                if idx + rowspan == data_length:
-                    # End of dataset reached
-                    break
-
-                # Get next row, only basefields (no m2o nor o2m)
-                next_row = data[idx + rowspan]
-                for _, base_meta in meta["base"].items():
-                    for i in base_meta["original"]:
-                        next_row_data = [next_row[i]]
-
-                # Check if the next row basefields are all empty
-                if all("" == d for d in next_row_data):
-                    rowspan += 1
-                else:
-                    break
-
+            op, oid = _resolve_insert_update(slmatrix[0], fields)
+            
+            # Prepare Base Fields
+            for base_field, base_meta in meta["base"].items():
+                simple_data[base_field] = slmatrix[0][base_meta[0]]
+            
             # Import M2Os
+            # M2Os are resolved into ObjectIds, one at a time
             for m2o_field, m2o_meta in meta["m2o"].items():
                 m2o_fields = list()
-                m2o_data = list()
-                for col_index in m2o_meta["original"]:
+                m2o_data =   list()
+                for col_index in m2o_meta:
+                    # Generate field names for current m2o field
                     m2o_fields.append("/".join(import_fields[col_index][1:]))
-                for offset in range(0, rowspan):
-                    m2o_data.append([data[idx + offset][col_index]
-                                     for col_index in m2o_meta["original"]])
-                outcome = self.env[self._fields[m2o_field]._comodel_name].load(
+                for offset in range(0, len(slmatrix[0])):
+                    # Generate m2o data submatrix
+                    m2o_data.append([slmatrix[offset][col_index]
+                                    for col_index in m2o_meta])
+                # Import and get ID
+                outcome = self.env[self._fields[m2o_field]._comodel_name]._load(
                     m2o_fields, m2o_data)
                 if len(outcome["errors"]) > 0:
                     for err in outcome["errors"]:
                         errors.append(err)
                     continue
                 if len(outcome["ids"]) == 1:
-                    simple_data_row[m2o_meta["new"]] = outcome["ids"][0]
+                    simple_data[m2o_field] = outcome["ids"][0]
 
-            # Move base data to new matrix
-            for _, base_data in meta["base"].items():
-                simple_data_row[base_data["new"]] = row_data[base_data["original"][0]]
+            # Reference parent record if provided
+            if parent_field and parent_oid:
+                simple_data[parent_field] = parent_oid
 
-            # Append to simplified data list
-            simple_data.append(simple_data_row)
+            # Load data into write cache
+            if op == "create":
+                simple_data["_id"] = oid
+                try:
+                    raw_data = self.validate(simple_data)
+                except Exception as e:
+                    errors.append(e)
+                    continue
+                self.env.cache.append(op, self._name, None, raw_data)
+            elif op == "write":
+                try:
+                    raw_data = self.validate(simple_data, True)
+                except Exception as e:
+                    errors.append(e)
+                    continue
+                self.env.cache.append(op, self._name, [oid], simple_data)
 
-            # # Finally, import One2many data
-            # for o2m_field, o2m_meta in meta["o2m"].items():
-            #     o2m_fields = list()
-            #     o2m_data = list()
-            #     inversed_by = self._fields[o2m_field]._inversed_by
-            #     for col_index in o2m_meta["original"]:
-            #         o2m_fields.append("/".join(import_fields[col_index][1:]))
+            # Import O2Ms
+            # O2Ms are treated like independent records
+            # that reference the current one.
+            for o2m_field, o2m_meta in meta["o2m"].items():
+                o2m_fields = list()
+                o2m_data =   list()
+                for col_index in o2m_meta:
+                    # Generate field names for current m2o field
+                    o2m_fields.append("/".join(import_fields[col_index][1:]))
+                for offset in range(0, len(slmatrix[0])):
+                    # Generate o2m data submatrix
+                    o2m_data.append([slmatrix[offset][col_index]
+                                    for col_index in o2m_meta])
+                # Import. New documents will reference current one
+                # thanks to the parent_field and parend_id params.
+                parent_field = self._fields[o2m_field]
+                outcome = self.env[self._fields[o2m_field]._comodel_name]._load(
+                    o2m_fields, 
+                    o2m_data, 
+                    parent_field=parent_field,
+                    parent_oid=oid)
+                if len(outcome["errors"]) > 0:
+                    for err in outcome["errors"]:
+                        errors.append(err)
+                    continue
 
-            #     # Ensure inversed_by field in fields list and get its index
-            #     if inversed_by not in o2m_fields:
-            #         o2m_fields.append(inversed_by)
-            #         inversed_by_index = o2m_fields[-1]
-            #     else:
-            #         inversed_by_index = o2m_fields.index(inversed_by)
+            # Import M2Ms
+            for m2m_field, m2m_meta in meta["m2m"].items():
+                m2m_fields = list()
+                m2m_data =   list()
+                for col_index in m2m_meta:
+                    # Generate field names for current m2o field
+                    m2m_fields.append("/".join(import_fields[col_index][1:]))
+                for offset in range(0, len(slmatrix[0])):
+                    # Generate m2m data submatrix
+                    m2m_data.append([slmatrix[offset][col_index]
+                                    for col_index in m2m_meta])
+                # Import.
+                outcome = self.env[self._fields[m2m_field]._comodel_name]._load(
+                    m2m_fields, 
+                    m2m_data)
+                if len(outcome["errors"]) > 0:
+                    for err in outcome["errors"]:
+                        errors.append(err)
+                    continue
+                if len(outcome["ids"]) > 0:
+                    m2m_field = self._fields[m2m_field]
+                    rel_name =      m2m_field._relation
+                    field_a =       m2m_field._field_a
+                    field_b =       m2m_field._field_b
+                    items = list()
+                    for m2m_oid in outcome["ids"]:
+                        items.append({
+                            "_id": ObjectId(),
+                            field_a: oid,
+                            field_b: m2m_oid,
+                        })
+                    self.env.cache.append(
+                        "create",
+                        rel_name,
+                        None,
+                        items
+                    )
+                
+            # Consider this document as successfully inserted
+            ids.append(oid)
 
-            #     for offset in range(0, rowspan):
-            #         data_row = [data[idx + offset][col_index]
-            #                     for col_index in o2m_meta["original"]]
-            #         if inversed_by_index == len(data_row):
-            #             data_row.append(res_id)
-            #         else:
-            #             data_row[inversed_by] = res_id
-            #         o2m_data.append(data_row)
-
-            #     outcome = self.env[self._fields[m2o_field]._inversed_by].load(
-            #         o2m_fields, o2m_data)
-
-            #     if len(outcome["errors"]) > 0:
-            #         for err in outcome["errors"]:
-            #             errors.append(err)
-            #         continue
-            #     if len(outcome["ids"]) == 1:
-            #         simple_data_row[o2m_meta["new"]] = outcome["ids"][0]
-
-        # Data validation phase
-        for idx, _data in enumerate(simple_data):
-            # Comprehend a dictionary with the current row data
-            dict_data = {f: _data[i] for i, f in enumerate(simple_fields)}
-            # Determine wether row would require
-            # a create() or a write() operation
-            if "id" in simple_fields and dict_data["id"] is not None:
-                mod_data = self.env["base.model.data"].search(
-                    {"model": self._name, "name": dict_data["id"]})
-                write = bool(mod_data)
-                dict_data.pop("id", None)
-            else:
-                write = False
-
-            try:
-                self.validate(dict_data, write)
-            except Exception as e:
-                if len(errors) == 10:
-                    break
-                errors.append("Item {}: {}".format(str(idx), str(e)))
-
-        if len(errors) == 0:
-            ids = self._load(simple_fields, simple_data)
-
-        return {"ids": ids, "errors": errors}
-
-    def _load(self, fields, dataset):
-        """
-        Private method for loading data.
-        This method assumes validation has been already performed.
-        Returns list of generated or updated ids.
-        """
-
-        def _load_update(dict_data, res_id):
-            """ Browse an existing record and update.
-            Return its _id
-            """
-            res_id = mod_data.res_id
-            rec = self.browse(res_id)
-            if not rec:
-                raise ValueError("Record not found (model: {}, _id: {})".format(
-                    self._name, str(res_id)))
-            del dict_data["id"]
-            rec.write(dict_data)
-            return rec._id
-
-        def _load_create(dict_data, with_name=False):
-            """ Create a new record and a model data
-            entry linked to it.
-            Return the newly created record _id.
-            """
-            recid = dict_data.pop("id", None)
-            rec = self.create(dict_data)
-            res_id = rec._id
-            name = recid if with_name else "__import__.{}".format(str(res_id))
-            self.env["base.model.data"].create({
-                "model": self._name,
-                "name": name,
-                "res_id": res_id
-            })
-            return res_id
-
-        ids = list()
-        for data in dataset:
-            dict_data = {field: data[i] for i, field in enumerate(fields)}
-            if "id" in fields and dict_data["id"] is not None:
-                # An external id was provided
-                # This either means a record has to be created
-                # and linked to an external id, or an existing
-                # record has to be updated.
-                mod_data = self.env["base.model.data"].search(
-                    {"model": self._name, "name": dict_data["id"]})
-                if mod_data:
-                    # External id exists in database, update.
-                    res_id = _load_update(dict_data, mod_data.res_id)
-                else:
-                    # External id does not exist in database,
-                    # create new record and generate model data entry.
-                    res_id = _load_create(dict_data, True)
-            else:
-                # An external id was not provided. Create a new record.
-                res_id = _load_create(dict_data, False)
-
-            ids.append(res_id)
-
-        return ids
+        return ids, errors

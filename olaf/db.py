@@ -139,7 +139,7 @@ class DocumentCache():
         self.__queue__ = list()
         self.__session__ = session
 
-    def append(self, model, oids, data={}, op="write"):
+    def append(self, op, model, oids=[], data=None):
         """
         Adds or update data on a single caché element
         """
@@ -157,7 +157,7 @@ class DocumentCache():
         if not isinstance(oids, list):
             oids = [oids]
 
-        self.__queue__.append((model, oids, op, data))
+        self.__queue__.append((op, model, oids, data))
 
     def clear(self):
         """
@@ -173,18 +173,30 @@ class DocumentCache():
         conn = Connection()
         try:
             for tpl in self.__queue__:
-                modname = tpl[0]
-                oids = tpl[1]
-                if tpl[2] == "create":
-                    conn.db[modname].insert_one(
-                        tpl[3],
-                        session=self.__session__)
-                elif tpl[2] == "write":
+                modname = tpl[1]
+                oids = tpl[2]
+                if tpl[0] == "create":
+                    if isinstance(tpl[3], dict):
+                        conn.db[modname].insert_one(
+                            tpl[3],
+                            session=self.__session__)
+                    elif isinstance(tpl[3], list):    
+                        conn.db[modname].insert_many(
+                            tpl[3],
+                            ordered=True,
+                            session=self.__session__)
+                    else:
+                        raise ValueError(
+                            "Invalid data format. "
+                            "Expected dict or list of dicts, "
+                            "got {} instead.".format(
+                                tpl[3].__class__.__name__))
+                elif tpl[0] == "write":
                     conn.db[modname].update_many(
                         {"_id": {"$in": oids}},
                         {"$set": tpl[3]},
                         session=self.__session__)
-                elif tpl[2] == "delete":
+                elif tpl[0] == "delete":
                     conn.db[modname].delete_many(
                         {"_id": {"$in": oids}}, 
                         session=self.__session__)
