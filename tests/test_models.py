@@ -164,54 +164,6 @@ def test_read():
     assert((tc1._id, tc1.name) in read[0]["manytomany_ids"])
     assert((tc2._id, tc2.name) in read[0]["manytomany_ids"])
 
-
-def test_load():
-    tm1 = self.env["test.models.model"]
-    
-    # Test importation with external ids
-    tm1.load(
-        ["id", "name", "age"], 
-        [
-            ["testload1", "name1A", 1], 
-            ["testload2", "name2A", 2]])
-    
-    assert(tm1.get("testload1").name == "name1A")
-    assert(tm1.get("testload2").name == "name2A")
-
-    # Test importation overwriting existing documents
-    tm1.load(
-        ["id", "name", "age", "boolean"], 
-        [
-            ["testload1", "name1B", 1, 1], 
-            ["testload2", "name2B", 2, 0]])
-    
-    doc1 = tm1.get("testload1")
-    doc2 = tm1.get("testload2")
-    assert(doc1.name == "name1B")
-    assert(doc2.name == "name2B")
-    assert(doc1.boolean == True)
-    assert(doc2.boolean == False)
-
-    # Test importation without providing ids
-    outcome = tm1.load(
-        ["name", "age"], 
-        [
-            ["name1C", 1], 
-            ["name2C", 2]])
-    
-    assert(tm1.browse(outcome["ids"][0]).name == "name1C") # use browse and outcome["ids"]
-    assert(tm1.get("__import__.{}".format(outcome["ids"][1])).name == "name2C") # Get by automatically generated external id
-
-    # Test failed validation
-    outcome = tm1.load(
-        ["name", "age"], 
-        [
-            ["name1C", "not an integer"], 
-            ["name2C", 2]])
-
-    assert(len(outcome["ids"]) == 0)
-    assert(len(outcome["errors"]) == 1)
-
 def test_model_finish():
     """ Clean previous tests """
     conn = db.Connection()
