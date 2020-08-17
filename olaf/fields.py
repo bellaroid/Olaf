@@ -201,7 +201,12 @@ class RelationalField(BaseField):
         return value
 
     def _is_comodel_oid(self, oid, instance):
-        """ Ensure the provided oid exists in the co-model """
+        """ 
+        Ensure the provided oid exists in the co-model,
+        or that its insertion is yet pending.
+        """
+        if instance.env.cache.is_pending(oid):
+            return
         item = instance.env[self._comodel_name].browse(oid)
         if item.count() == 0:
             raise ValueError(

@@ -586,7 +586,7 @@ class Model(metaclass=ModelMeta):
                 # Verify row maximum span
                 rowspan = 1
                 while True:
-                    if idx + rowspan >= data_length:
+                    if idx + rowspan == data_length:
                         # End of dataset reached
                         break
 
@@ -603,8 +603,11 @@ class Model(metaclass=ModelMeta):
                         break
 
                 # Rowspan should now indicate the amount of rows required
-                # for a single document. Create a slice of
+                # for a single document.
                 result.append(data[idx:idx+rowspan])
+
+                # Set index
+                idx = idx + rowspan - 1 
 
             return result
 
@@ -622,10 +625,14 @@ class Model(metaclass=ModelMeta):
                 if ext_id and ext_id != "":
                     # id was provided, 
                     # find or create base.model.data entry
-                    moddata = self.env["base.model.data"].search({"name":ext_id})
+                    moddata = self.env["base.model.data"].search({
+                        "name":ext_id,
+                        "model": self._name
+                    })
                     if moddata:
                         # existing model data found
                         # get the resource oid
+                        import pdb; pdb.set_trace()
                         op = "write"
                         oid = moddata.res_id # pylint: disable=no-member
                     else:
@@ -715,7 +722,7 @@ class Model(metaclass=ModelMeta):
             simple_data = dict()
 
             op, oid = _resolve_insert_update(slmatrix[0], fields)
-            
+
             # Prepare Base Fields
             for base_field, base_meta in meta["base"].items():
                 simple_data[base_field] = slmatrix[0][base_meta[0]]
@@ -730,8 +737,13 @@ class Model(metaclass=ModelMeta):
                     m2o_fields.append("/".join(import_fields[col_index][1:]))
                 for offset in range(0, len(slmatrix)):
                     # Generate m2o data submatrix
-                    m2o_data.append([slmatrix[offset][col_index]
-                                    for col_index in m2o_meta])
+                    subrow = list()
+                    for col_index in m2o_meta:
+                        subrow.append(slmatrix[offset][col_index])
+                    if all(x == "" for x in subrow):
+                        # Discard empty rows
+                        continue
+                    m2o_data.append(subrow)
                 # Import and get ID
                 out_ids, out_errs = self.env[self._fields[m2o_field]._comodel_name]._load(
                     m2o_fields, m2o_data)
@@ -745,7 +757,7 @@ class Model(metaclass=ModelMeta):
             # Reference parent record if provided
             if parent_field and parent_oid:
                 simple_data[parent_field] = parent_oid
-
+            
             # Load data into write cache
             if op == "create":
                 simple_data["_id"] = oid
@@ -770,19 +782,23 @@ class Model(metaclass=ModelMeta):
                 o2m_fields = list()
                 o2m_data =   list()
                 for col_index in o2m_meta:
-                    # Generate field names for current m2o field
+                    # Generate field names for current o2m field
                     o2m_fields.append("/".join(import_fields[col_index][1:]))
                 for offset in range(0, len(slmatrix)):
                     # Generate o2m data submatrix
-                    o2m_data.append([slmatrix[offset][col_index]
-                                    for col_index in o2m_meta])
+                    subrow = list()
+                    for col_index in o2m_meta:
+                        subrow.append(slmatrix[offset][col_index])
+                    if all(x == "" for x in subrow):
+                        # Discard empty rows
+                        continue
+                    o2m_data.append(subrow)
                 # Import. New documents will reference current one
                 # thanks to the parent_field and parend_id params.
-                parent_field = self._fields[o2m_field]
                 _, out_errs = self.env[self._fields[o2m_field]._comodel_name]._load(
                     o2m_fields, 
                     o2m_data, 
-                    parent_field=parent_field,
+                    parent_field=self._fields[o2m_field]._inversed_by,
                     parent_oid=oid)
                 if len(out_errs) > 0:
                     for err in out_errs:
@@ -794,12 +810,17 @@ class Model(metaclass=ModelMeta):
                 m2m_fields = list()
                 m2m_data =   list()
                 for col_index in m2m_meta:
-                    # Generate field names for current m2o field
+                    # Generate field names for current m2m field
                     m2m_fields.append("/".join(import_fields[col_index][1:]))
                 for offset in range(0, len(slmatrix)):
                     # Generate m2m data submatrix
-                    m2m_data.append([slmatrix[offset][col_index]
-                                    for col_index in m2m_meta])
+                    subrow = list()
+                    for col_index in m2m_meta:
+                        subrow.append(slmatrix[offset][col_index])
+                    if all(x == "" for x in subrow):
+                        # Discard empty rows
+                        continue
+                    m2m_data.append(subrow)
                 # Import.
                 out_ids, out_errs = self.env[self._fields[m2m_field]._comodel_name]._load(
                     m2m_fields, 

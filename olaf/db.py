@@ -138,6 +138,7 @@ class DocumentCache():
     def __init__(self, session=None):
         self.__queue__ = list()
         self.__session__ = session
+        self.__pending__ = set()
 
     def append(self, op, model, oids=[], data=None):
         """
@@ -153,6 +154,19 @@ class DocumentCache():
         if op == "write" and not bool(data):
             return
 
+        if op == "create":
+            # Add OID to pendings, 
+            # so ODM knows about them
+            if isinstance(data, dict):
+                self.__pending__.add(data["_id"])
+            elif isinstance(data, list):
+                for item in data:
+                    self.__pending__.add(item["_id"])
+            else:
+                raise ValueError(
+                    "Expected dict or list of dicts, "
+                    "got {} instead".format(data.__class__.__name__))
+
         # Convert oids into list
         if not isinstance(oids, list):
             oids = [oids]
@@ -164,6 +178,7 @@ class DocumentCache():
         Wipes the entire caché
         """
         self.__queue__.clear()
+        self.__pending__.clear()
 
     def flush(self):
         """
@@ -180,11 +195,14 @@ class DocumentCache():
                         conn.db[modname].insert_one(
                             tpl[3],
                             session=self.__session__)
+                        self.__pending__.remove(tpl[3]["_id"])
                     elif isinstance(tpl[3], list):    
                         conn.db[modname].insert_many(
                             tpl[3],
                             ordered=True,
                             session=self.__session__)
+                        for item in tpl[3]:
+                            self.__pending__.remove(item["_id"])
                     else:
                         raise ValueError(
                             "Invalid data format. "
@@ -204,3 +222,6 @@ class DocumentCache():
             self.clear()
             raise
         self.clear()
+
+    def is_pending(self, oid):
+        return oid in self.__pending__
