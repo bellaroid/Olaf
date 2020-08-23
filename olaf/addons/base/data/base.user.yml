@@ -1,7 +1,8 @@
 base.user:
   -
     id: base.user.admin
-    name: admin
+    name: Administrator
+    email: admin
     password: admin
     group_ids:
       - add: base.group.admin
