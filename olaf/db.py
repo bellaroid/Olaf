@@ -53,7 +53,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
 
         # Create collection if not present
         if cls._name not in conn.db.list_collection_names():
-            conn.db.create_collection(cls._name)
+            conn.db.create_collection(cls._name, write_concern="majority")
 
         # Handle Index and Compound Indexes creation
         for attr_name in attrs:
