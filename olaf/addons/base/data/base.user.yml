@@ -1,0 +1,7 @@
+base.user:
+  -
+    id: base.user.admin
+    name: admin
+    password: admin
+    group_ids:
+      - add: base.group.admin

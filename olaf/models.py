@@ -632,7 +632,6 @@ class Model(metaclass=ModelMeta):
                     if moddata:
                         # existing model data found
                         # get the resource oid
-                        import pdb; pdb.set_trace()
                         op = "write"
                         oid = moddata.res_id # pylint: disable=no-member
                     else:

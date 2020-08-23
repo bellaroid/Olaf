@@ -10,6 +10,7 @@ from . import config
 from olaf.db import Connection
 from olaf.http import route, j2env
 from olaf.tools.environ import Environment
+from olaf.fields import One2many, Many2many, Many2one
 
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,7 @@ def initialize():
             """
             Imports data from a file.
             - If file is in CSV format, then guess the model from the filename.
+            - If file is in YAML format, then obtain model names from file contents.
             First row represents columns, remaining rows represent the data matrix.
             """
             # Get filename from abs path
@@ -57,18 +59,115 @@ def initialize():
             fields = list()
             data = list()
 
-            model = split[0] if not security else "base.model.access"
-            with open(fname) as csv_file:
-                csv_reader = csv.reader(csv_file, delimiter=",")
-                first_line = True
-                for row in csv_reader:
-                    if first_line:
-                        first_line = False
-                        fields = [*row]
-                    else:
-                        data.append([*row])
-                env[model].load(fields, data)
+            if split[1] == ".csv":
+                model = split[0] if not security else "base.model.access"
+                with open(fname) as csv_file:
+                    csv_reader = csv.reader(csv_file, delimiter=",")
+                    first_line = True
+                    for row in csv_reader:
+                        if first_line:
+                            first_line = False
+                            fields = [*row]
+                        else:
+                            data.append([*row])
+                    env[model].load(fields, data)
+            elif split[1] in [".yaml", ".yml"]:
+                # Parse YAML file
+                with open(fname) as yaml_file:
+                    parsed_yaml = yaml.safe_load(yaml_file)
 
+                # Iterate over model names
+                for model_name in parsed_yaml.keys():
+                    model = env[model_name]
+                    # Iterate over items (document data)
+                    for item in parsed_yaml[model_name]:
+                        dict_data = dict()
+                        # Iterate over field:value's
+                        for field_name, value in item.items():
+                            # Skip 'id' field
+                            if field_name == "id":
+                                dict_data[field_name] = value
+                                continue
+                            field = model._fields[field_name]
+                            if isinstance(field, Many2one):
+                                oid = env[field._comodel_name].get(value)
+                                if not oid:
+                                    raise ValueError("Reference {} not found in database".format(value))
+                                dict_data[field_name] = value
+                            elif isinstance(field, One2many) or isinstance(field, Many2many):
+                                """
+                                YAML Syntax Reference
+                                model.name:
+                                    -
+                                        id: some_ext_id
+                                        some_fld: some_val
+                                        something_ids:
+                                            - create:                                                
+                                                fld1: val1
+                                                fld2: val2
+                                                fld3: val3
+                                            - add: ref1
+                                            - add: ref2
+                                            - replace:
+                                                - ref1
+                                                - ref2
+                                """
+                                tuples = list()
+                                for d in value:
+                                    # Every item is a dictionary of one element
+                                    # {'operation_name': value}
+                                    op = next(iter(d))
+                                    if op == "create":
+                                        value = d[op]
+                                    elif op == "add":
+                                        value = env[field._comodel_name].get(d[op])
+                                        if not value:
+                                            raise ValueError("Reference {} not found in database".format(d[op]))
+                                    elif op == "replace":
+                                        value = list()
+                                        for i in d[op]:
+                                            oid = env[field._comodel_name].get(d[op])
+                                            if not oid:
+                                                raise ValueError("Reference {} not found in database".format(d[op]))
+                                            value.append(oid)
+                                    else:
+                                        raise ValueError("Operation {} not allowed during YAML data load".format(op))
+                                    tuples.append((op, value))
+                                dict_data[field_name] = tuples
+                            else:
+                                dict_data[field_name] = value
+
+                        if "id" in dict_data:
+                            ref = env[model_name].get(dict_data["id"])
+                            if not ref:
+                                # Create base.model.data entry
+                                try:
+                                    dict_data["_id"] = bson.ObjectId()
+                                    env["base.model.data"].create({
+                                        "name": dict_data["id"],
+                                        "model": model_name,
+                                        "res_id": dict_data["_id"]
+                                    })
+                                    del dict_data["id"]
+                                    env[model_name].create(dict_data)
+                                except Exception:
+                                    raise
+                            else:
+                                # Update found reference
+                                del dict_data["id"]
+                                ref.write(dict_data)
+                        else:
+                            # Create record with generic __import__ prefix
+                            try:
+                                dict_data["_id"] = bson.ObjectId()
+                                env["base.model.data"].create({
+                                    "name": "__import__.{}".format(dict_data["_id"]),
+                                    "model": model_name,
+                                    "res_id": dict_data["_id"]
+                                })
+                                env[model_name].create(dict_data)
+                            except Exception:
+                                raise
 
         def load_file_data(env, module_name, module_data):
             """
