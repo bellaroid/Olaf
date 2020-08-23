@@ -101,9 +101,9 @@ class Connection(metaclass=ConnectionMeta):
         port = config.DB_PORT
         tout = config.DB_TOUT
         if user and pswd:
-            connstr = "mongodb://{}:{}@{}:{}/".format(user, pswd, host, port)
+            connstr = "mongodb://{}:{}@{}:{}/w=majority".format(user, pswd, host, port)
         elif not user and not pswd:
-            connstr = "mongodb://{}:{}".format(host, port)
+            connstr = "mongodb://{}:{}/w=majority".format(host, port)
         else:
             raise ValueError("MongoDB user or password were not specified")
 
