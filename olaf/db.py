@@ -3,8 +3,11 @@ import logging
 import click
 from pymongo import MongoClient, DESCENDING
 from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.write_concern import WriteConcern
+
 
 logger = logging.getLogger(__name__)
+write_concern = WriteConcern(w=1, fsync=True)
 
 
 class ModelRegistryMeta(type):
@@ -53,7 +56,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
 
         # Create collection if not present
         if cls._name not in conn.db.list_collection_names():
-            conn.db.create_collection(cls._name, write_concern="majority")
+            conn.db.create_collection(cls._name, write_concern=write_concern)
 
         # Handle Index and Compound Indexes creation
         for attr_name in attrs:
