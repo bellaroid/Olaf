@@ -3,8 +3,6 @@ import logging
 import click
 from pymongo import MongoClient, DESCENDING
 from pymongo.errors import ServerSelectionTimeoutError
-from pymongo.write_concern import WriteConcern
-
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +47,7 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
         """ Classes wrapped around this method
         will be added to the registry.
         """
-        from olaf.fields import BaseField
+        from olaf.fields import BaseField, Many2many, Many2one
         conn = Connection()
         attrs = dir(cls)
 
@@ -67,6 +65,30 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
             if issubclass(attr.__class__, BaseField):
                 if attr._unique:
                     conn.db[cls._name].create_index(attr_name, unique=True)
+            if issubclass(attr.__class__, Many2many):
+                # Look for m2m fields in the model definition
+                # and create intermediate models if necessary.
+                if attr._relation not in self.__models__:
+                    # Import Model and ModelMeta
+                    from olaf.models import Model, ModelMeta
+                    # Create fields
+                    rel_fld_a = Many2one(cls._name, required=True)
+                    rel_fld_b = Many2one(attr._comodel_name, required=True)
+                    # Extract __dict__ (all Model's attributes, methods and descriptors)
+                    model_dict = dict(Model.__dict__)
+                    # Inject name and fields
+                    model_dict["_name"] = attr._relation
+                    model_dict[attr._field_a] = rel_fld_a
+                    model_dict[attr._field_b] = rel_fld_b
+                    model_dict["_compound_indexes"] = [
+                        (attr._field_a, attr._field_b)]
+                    for tup_ind in model_dict["_compound_indexes"]:
+                        conn.db[attr._relation].create_index(
+                            [(ind, DESCENDING) for ind in tup_ind], unique=True)
+                    # Create metaclass
+                    mod = ModelMeta("Model", (), model_dict)
+                    self.__models__[attr._relation] = mod
+
         # Add class to the Registry
         self.__models__[cls._name] = cls
         return cls
@@ -101,9 +123,9 @@ class Connection(metaclass=ConnectionMeta):
         port = config.DB_PORT
         tout = config.DB_TOUT
         if user and pswd:
-            connstr = "mongodb://{}:{}@{}:{}/w=majority".format(user, pswd, host, port)
+            connstr = "mongodb://{}:{}@{}:{}/".format(user, pswd, host, port)
         elif not user and not pswd:
-            connstr = "mongodb://{}:{}/w=majority".format(host, port)
+            connstr = "mongodb://{}:{}".format(host, port)
         else:
             raise ValueError("MongoDB user or password were not specified")
 

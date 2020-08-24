@@ -434,28 +434,6 @@ class Many2many(RelationalField):
         self._field_a   = (args[2:3] or (None,))[0] or kwargs["field_a"]
         self._field_b   = (args[3:4] or (None,))[0] or kwargs["field_b"]
 
-    def _ensure_intermediate_model(self, instance):
-        """ Declare intermediate model exists 
-        """
-
-        if self._relation not in instance.env.registry.__models__:
-            # Import Model and ModelMeta
-            from olaf.models import Model, ModelMeta
-            # Create fields
-            rel_fld_a = Many2one(instance._name, required=True)
-            rel_fld_b = Many2one(self._comodel_name, required=True)
-            # Extract __dict__ (all Model's attributes, methods and descriptors)
-            model_dict = dict(Model.__dict__)
-            # Inject name and fields
-            model_dict["_name"] = self._relation
-            model_dict[self._field_a] = rel_fld_a
-            model_dict[self._field_b] = rel_fld_b
-            model_dict["_compound_indexes"] = [
-                (self._field_a, self._field_b)]
-            # Create metaclass
-            mod = ModelMeta("Model", (), model_dict)
-            instance.env.registry.add(mod)
-
     def __get__(self, instance, owner):
         """ Search for relationships in the intermediate model
         containing references to the instance id, and with these
@@ -464,7 +442,6 @@ class Many2many(RelationalField):
         if instance is None:
             return self
         instance.ensure_one()
-        self._ensure_intermediate_model(instance)
         # Perform search and browse
         rels = instance.env[self._relation].search({self._field_a: instance._id})
         return instance.env[self._comodel_name].browse(
@@ -544,9 +521,6 @@ class Many2many(RelationalField):
 
         list_tuples = self.__validate__(instance, list_tuples)
         
-        # Create intermediate model if not present
-        self._ensure_intermediate_model(instance)
-        
         for _, t in enumerate(list_tuples):
             if not getattr(instance, "_implicit_save", True):
                 # Handle deferred write
@@ -588,8 +562,8 @@ class Many2many(RelationalField):
                 elif t[0] == "purge":
                     oid = self._ensure_oid(t[1])
                     item = self._is_comodel_oid(oid, instance)
-                    item.unlink()
                     instance.env[relname].search({fld_b: oid}).unlink()
+                    item.unlink()
                 elif t[0] == "remove":
                     oid = self._ensure_oid(t[1])
                     item = self._is_comodel_oid(oid, instance)
