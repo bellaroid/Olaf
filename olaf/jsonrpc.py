@@ -125,7 +125,7 @@ def call_method(params, model, method):
         ids = params.get("ids", [])
         result = model.browse(ids).unlink()
     elif method == "whoami":
-        result = model.env["base.user"].browse(model.env.context["uid"]).read()
+        result = model.env["base.user"].browse(model.env.context["uid"]).read()[0]
     else:
         # Generic method call
         ids =    params.get("ids", [])
