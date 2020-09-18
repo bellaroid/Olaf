@@ -164,6 +164,22 @@ def test_read():
     assert((tc1._id, tc1.name) in read[0]["manytomany_ids"])
     assert((tc2._id, tc2.name) in read[0]["manytomany_ids"])
 
+def test_mapped():
+    """ Test mapped method """
+    c1 = self.env["test.models.comodel"].create({"name": "MapComodel01"})
+    c2 = self.env["test.models.comodel"].create({"name": "MapComodel02"})
+    self.env["test.models.model"].create({"name": "Map01", "cascade_id": c1._id})
+    self.env["test.models.model"].create({"name": "Map02", "cascade_id": c2._id})
+    docset = self.env["test.models.model"].search({"name": {"$regex": "^Map"}})
+    mapped = docset.mapped("name")
+    assert(isinstance(mapped, list))
+    assert(len(mapped) == docset.count())
+    assert("Map01" in mapped)
+    assert("Map02" in mapped)
+    docset = docset.mapped("cascade_id")
+    assert(c1._id in docset.ids())
+    assert(c2._id in docset.ids())
+
 def test_model_finish():
     """ Clean previous tests """
     conn = db.Connection()

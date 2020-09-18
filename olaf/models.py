@@ -466,6 +466,22 @@ class Model(metaclass=ModelMeta):
             return [str(item._id) for item in self]
         return [item._id for item in self]
 
+    def mapped(self, field):
+        if not field in self._fields:
+            raise ValueError("Field '{}' not found in model".format(field))
+        field_inst = self._fields[field]
+        # If field is relational, return a recordset containing the
+        # related ids of each document in the set.
+        if issubclass(field_inst.__class__, RelationalField):
+            ids = set()
+            rel_model = self.env[field_inst._comodel_name]
+            for rec in self:
+                for rel in getattr(rec, field):
+                    ids = ids | set(rel.ids())
+            return rel_model.search({"_id": {"$in": list(ids)}})
+        # Otherwise return mapped list
+        return [getattr(rec, field) for rec in self]
+
     def get(self, external_id):
         """ Finds a single document by its external id """
         mod_data = self.env["base.model.data"].search(
