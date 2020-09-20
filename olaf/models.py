@@ -1,5 +1,5 @@
 import logging
-from olaf.fields import BaseField, Identifier, NoPersist, RelationalField, One2many, Many2one, Many2many
+from olaf.fields import BaseField, Identifier, Boolean, NoPersist, RelationalField, One2many, Many2one, Many2many
 from olaf.db import Connection
 from bson import ObjectId
 from olaf import registry
@@ -42,9 +42,9 @@ class Model(metaclass=ModelMeta):
     # model definition.
     _name = None
 
-    # The _id field should be available for all
-    # models and shouldn't be overridden
+    # Common Fields
     _id = Identifier()
+    active = Boolean(default=True)
 
     def __init__(self, environment, query=None):
         # Ensure _name attribute definition on child
@@ -322,7 +322,7 @@ class Model(metaclass=ModelMeta):
                         # Get x2many representation from caché
                         doc[field] = cache[field].get(dictitem["_id"], list())
                 else:
-                    doc[field] = dictitem[field]
+                    doc[field] = dictitem[field] if field in dictitem else None
             result.append(doc)
         return result
 
