@@ -14,7 +14,7 @@ from olaf import registry
 from olaf.tools import initialize
 from olaf.tools.environ import Environment
 
-initialize()
+initialize(shell=True)
 
 uid = ObjectId("000000000000000000000000")
 env = Environment(uid)

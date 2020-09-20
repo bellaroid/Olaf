@@ -6,11 +6,13 @@ import click
 import sys
 import csv
 import bson
+import signal
 from . import config
 from olaf.db import Connection
 from olaf.http import route, j2env
 from olaf.tools.environ import Environment
 from olaf.fields import One2many, Many2many, Many2one
+from olaf.cron import Scheduler
 
 
 logger = logging.getLogger(__name__)
@@ -18,7 +20,7 @@ file_name = "manifest.yml"
 root_uid = bson.ObjectId("000000000000000000000000")
 
 
-def initialize():
+def initialize(shell=False):
     """
     Olaf Bootstraping Function
     """
@@ -92,7 +94,8 @@ def initialize():
                             if isinstance(field, Many2one):
                                 oid = env[field._comodel_name].get(value)
                                 if not oid:
-                                    raise ValueError("Reference {} not found in database".format(value))
+                                    raise ValueError(
+                                        "Reference {} not found in database".format(value))
                                 dict_data[field_name] = value
                             elif isinstance(field, One2many) or isinstance(field, Many2many):
                                 """
@@ -120,18 +123,23 @@ def initialize():
                                     if op == "create":
                                         value = d[op]
                                     elif op == "add":
-                                        value = env[field._comodel_name].get(d[op])
+                                        value = env[field._comodel_name].get(
+                                            d[op])
                                         if not value:
-                                            raise ValueError("Reference {} not found in database".format(d[op]))
+                                            raise ValueError(
+                                                "Reference {} not found in database".format(d[op]))
                                     elif op == "replace":
                                         value = list()
                                         for i in d[op]:
-                                            oid = env[field._comodel_name].get(d[op])
+                                            oid = env[field._comodel_name].get(
+                                                d[op])
                                             if not oid:
-                                                raise ValueError("Reference {} not found in database".format(d[op]))
+                                                raise ValueError(
+                                                    "Reference {} not found in database".format(d[op]))
                                             value.append(oid)
                                     else:
-                                        raise ValueError("Operation {} not allowed during YAML data load".format(op))
+                                        raise ValueError(
+                                            "Operation {} not allowed during YAML data load".format(op))
                                     tuples.append((op, value))
                                 dict_data[field_name] = tuples
                             else:
@@ -216,6 +224,9 @@ def initialize():
             env = Environment(root_uid)
             load_file_data(env, module_name, module_data)
 
+    signal.signal(signal.SIGTERM, app_shutdown)
+    signal.signal(signal.SIGINT, app_shutdown)
+
     # Read All Modules
     color = click.style
     logger.info(color("Initializing Olaf", fg="white", bold=True))
@@ -226,7 +237,7 @@ def initialize():
     logger.info("Importing Modules")
     template_paths = list()
     for module_name in sorted_modules:
-        if modules[module_name]["base"]:    
+        if modules[module_name]["base"]:
             template_paths.insert(0, "addons/base/templates")
             importlib.import_module("olaf.addons.{}".format(module_name))
         else:
@@ -234,15 +245,32 @@ def initialize():
             importlib.import_module(module_name)
         # Import Module Data
         load_module_data(module_name, modules[module_name])
-        # Prepend template directory of this module 
-        template_paths.insert(0, os.path.join(modules[module_name]["path"], module_name, "templates"))
+        # Prepend template directory of this module
+        template_paths.insert(0, os.path.join(
+            modules[module_name]["path"], module_name, "templates"))
     # At this point, all model classes should be loaded in the registry
     load_deletion_constraints()
     # Create Jinja2 Templating Environment
     j2env.build(template_paths)
+    # Start scheduler
+    if not shell:
+        start_scheduler()
+    else:
+        logger.warning("Scheduler is disabled in shell context")
     # Generate route map
     route.build_url_map()
     logger.info(color("System Ready", fg="white", bold=True))
+
+
+def start_scheduler():
+    from . import config
+    disable = config.SCHEDULER_DISABLE
+    hb = config.SCHEDULER_HEARTBEAT
+    if disable:
+        logger.warning("Scheduler is Disabled")
+        return
+    logger.info("Starting Scheduler Process")
+    Scheduler(heartbeat=hb)
 
 
 def manifest_parser():
@@ -361,3 +389,13 @@ def ensure_root_user():
         logger.info("Overwriting root user password")
         conn.db["base.user"].update_one({"_id": root_uid}, {
                                         "$set": {"name": "root", "email": "root", "password": passwd}})
+
+
+def app_shutdown(sifnum, frame):
+    logger.info("Attempting to stop Olaf gracefully...")
+    sch = Scheduler()
+    sch.stop()
+    sch.process.join()
+    color = click.style
+    logger.info(color("Goodbye!", fg="white", bold=True))
+    sys.exit(0)

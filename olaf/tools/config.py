@@ -45,5 +45,7 @@ class Config:
     ROOT_PASSWORD =         Setting("str",  os.getenv("ROOT_PASSWORD", "olaf"))
     EXTRA_ADDONS =          Setting("str",  os.getenv("EXTRA_ADDONS", ""))
     CORS_ALLOW_ORIGIN =     Setting("str",  os.getenv("CORS_ALLOW_ORIGIN", "http://localhost:{}".format(str(APP_PORT.value))))
+    SCHEDULER_DISABLE =     Setting("bool", os.getenv("SCHEDULER_DISABLE", False))
+    SCHEDULER_HEARTBEAT =   Setting("int",  os.getenv("SCHEDULER_HEARTBEAT", 0))
 
 config = Config
