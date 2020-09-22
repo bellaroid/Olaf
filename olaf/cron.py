@@ -44,16 +44,20 @@ class Scheduler(metaclass=SchedulerMeta):
         jobs = conn.db["base.cron"].find({"active": True})
 
         # Update all nextcalls older than current time
-        # and load them into memory
-        self.jobs = list()
         for job in jobs:
             now = datetime.now()
             if now > job["nextcall"]:
-                delta = timedelta(job["interval"])
+                new_nextcall = now + timedelta(seconds=job["interval"])
                 conn.db["base.cron"].update_one(
                     {"_id": job["_id"]},
-                    {"$set": {"nextcall": now + delta}})
-            self.jobs.append(job)
+                    {"$set": {"nextcall": new_nextcall }})
+                
+        # Iterate again to get updated values    
+        # and load them into memory
+        jobs.rewind()
+        self.jobs = dict()
+        for job in jobs:
+            self.jobs[job["_id"]] = job
 
         self.running = True
         self.process = threading.Thread(
@@ -77,18 +81,22 @@ class Scheduler(metaclass=SchedulerMeta):
         if self.heartbeat > 0:
             next_hb = datetime.now() + timedelta(seconds=self.heartbeat)
         while self.running:
-            now = datetime.now()
-            for job in self.jobs:
+            for job_id, job in self.jobs.items():
                 # Nextcall overpassed, execute job
-                if job["nextcall"] > now:
+                if datetime.now() > job["nextcall"]:
                     self.run(job)
+                    new_nextcall = datetime.now() + timedelta(seconds=job["interval"])
+                    # Update Internal Value
+                    self.jobs[job_id]["nextcall"] = new_nextcall
+                    # Update Database Entry
                     conn.db["base.cron"].update_one(
-                        {"$set": {"nextcall": datetime.now() + timedelta(seconds=job["interval"])}})
+                        {"_id": job_id},
+                        {"$set": {"nextcall": new_nextcall}})
             # Handle Heartbeat
             if self.heartbeat > 0:
-                if now > next_hb:
+                if datetime.now() > next_hb:
                     logger.info("Scheduler Heartbeat")
-                    next_hb = now + timedelta(seconds=self.heartbeat)
+                    next_hb = datetime.now() + timedelta(seconds=self.heartbeat)
             time.sleep(1)
         logger.debug("Scheduler Loop has been terminated")
 
