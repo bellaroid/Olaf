@@ -1,4 +1,5 @@
 from olaf.db import Connection
+from olaf.tools.safe_eval import safe_eval
 from multiprocessing import Pool, TimeoutError
 from datetime import datetime, timedelta
 import threading
@@ -102,5 +103,5 @@ class Scheduler(metaclass=SchedulerMeta):
 
     def run(self, job):
         logger.info("Running job {} ({})...".format(job["_id"], job["name"]))
-        # TODO: RUN CODE
+        safe_eval(job["code"], {"datetime": datetime, "timedelta": timedelta, "logger": logger})
         
