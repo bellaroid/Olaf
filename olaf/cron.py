@@ -43,7 +43,6 @@ class Scheduler(metaclass=SchedulerMeta):
 
         # Get all active jobs
         jobs = conn.db["base.cron"].find({"active": True})
-
         # Update all nextcalls older than current time
         for job in jobs:
             now = datetime.now()
