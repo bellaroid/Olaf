@@ -22,7 +22,6 @@ class Cron(models.Model):
         return
 
     def create(self, *args, **kwargs):
-        import pdb; pdb.set_trace()
         result = super().create(*args, **kwargs)
         self._reset_scheduler()
         return result
