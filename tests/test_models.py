@@ -6,8 +6,6 @@ from olaf.tools import initialize
 from olaf.models import Model, DeletionConstraintError
 from olaf.tools.environ import Environment
 
-initialize()
-
 uid = ObjectId("000000000000000000000000")
 env = Environment(uid)
 self = registry["base.user"](env, {"_id": uid})
@@ -37,7 +35,7 @@ class tCoModel(models.Model):
 
 
 # Initialize App Engine After All Model Classes Are Declared
-initialize()
+initialize(shell=True)
 
 
 def test_unicity():

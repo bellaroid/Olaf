@@ -6,8 +6,6 @@ from olaf.tools import initialize
 from olaf.models import Model
 from olaf.tools.environ import Environment
 
-initialize()
-
 uid = ObjectId("000000000000000000000000")
 env = Environment(uid)
 self = registry["base.user"](env, {"_id": uid})
@@ -41,7 +39,7 @@ class tTagModel(Model):
 
 
 # Initialize App Engine After All Model Classes Are Declared
-initialize()
+initialize(shell=True)
 
 
 def test_field_assign():
@@ -125,7 +123,7 @@ def test_datetime():
     t = self.env["TestModel"]
     # BSON can't handle microseconds, so we round up our date to milliseconds
     now = datetime.datetime.now().replace(microsecond=0)
-    ti = t.create({"char_max_req": "testdtime", "date_time": now })
+    ti = t.create({"char_max_req": "testdtime", "date_time": now})
     assert(ti.date_time == now)
     datetime_str = "01/02/1988 06:00:00"
     birthdate = datetime.datetime.strptime(datetime_str, '%d/%m/%Y %H:%M:%S')
@@ -134,7 +132,7 @@ def test_datetime():
     # ISO 8601 extended format
     ti.write({"date_time": "1988-02-01T06:00:00.000000"})
     assert(ti.date_time == birthdate)
-    
+
 
 def test_m2o():
     """ Create a record in a model and reference it
@@ -268,7 +266,7 @@ def test_m2m():
     # Replace
     recs = self.env["TestTagModel"].search({"name":  {'$regex': "m2m_.*"}})
     assert(recs.count() == 4)
-    rec.m2m = [('create', {"name": "m2m_5"}), 
+    rec.m2m = [('create', {"name": "m2m_5"}),
                ('create', {"name": "m2m_6"})]
     assert(rec.m2m.count() == 2)
     rec.m2m = [('replace', recs.ids())]
