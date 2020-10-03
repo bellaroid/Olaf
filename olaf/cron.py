@@ -1,5 +1,8 @@
+from olaf import registry
 from olaf.db import Connection
+from olaf.tools import config
 from olaf.tools.safe_eval import safe_eval
+from olaf.tools.environ import Environment
 from multiprocessing import Pool, TimeoutError
 from datetime import datetime, timedelta
 import threading
@@ -9,6 +12,13 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Locals available within job execution context
+LOCALS = {
+    "time": time,
+    "datetime": datetime, 
+    "timedelta": timedelta, 
+    "logger": logger
+}
 
 class SchedulerMeta(type):
     """ This class ensures there's always a single
@@ -102,5 +112,22 @@ class Scheduler(metaclass=SchedulerMeta):
 
     def run(self, job):
         logger.info("Running job {} ({})...".format(job["_id"], job["name"]))
-        safe_eval(job["code"], {"datetime": datetime, "timedelta": timedelta, "logger": logger})
+        
+        # Generate context variables
+        conn = Connection()
+        client = conn.cl
+
+        if config.DB_REPLICASET_ENABLE:    
+            with client.start_session() as session:
+                with session.start_transaction():
+                    env = Environment(job["_id"], session)
+                    _locals = {**LOCALS, "env": env}
+                    safe_eval(job["code"], _locals)
+                    return
+        else:
+            env = Environment(job["_id"])
+            _locals = {**LOCALS, "env": env}
+            safe_eval(job["code"], _locals)
+        
+        
         
