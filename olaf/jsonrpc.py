@@ -117,6 +117,10 @@ def call_method(params, model, method):
     elif method == "count":
         query = params.get("query", {})
         result = model.search(query).count()
+    elif method == "create":
+        args = params.get("args", [])
+        kwargs = params.get("kwargs", {})
+        result = model.create(*args, **kwargs).read()
     elif method == "search_read":
         query = params.get("query", {})
         fields = params.get("fields", [])
