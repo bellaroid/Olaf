@@ -18,6 +18,7 @@ class tModel(Model):
     char_max_req = fields.Char(max_length=10, required=True)
     char_with_default = fields.Char(default="Default")
     integer = fields.Integer()
+    selection = fields.Selection(choices=["a", "b", "c"])
     m2o = fields.Many2one("TestCoModel")
     m2m = fields.Many2many(
         "TestTagModel", relation="test.model.tag.rel", field_a="a_oid", field_b="b_oid")
@@ -132,6 +133,24 @@ def test_datetime():
     # ISO 8601 extended format
     ti.write({"date_time": "1988-02-01T06:00:00.000000"})
     assert(ti.date_time == birthdate)
+
+
+def test_selection():
+    """ Test selection field
+    """
+    t = self.env["TestModel"]
+    ti = t.create({"char_max_req": "testselect"})
+    # Assign allowed values
+    ti.selection = "a"
+    assert(ti.selection == "a")
+    ti.selection = "b"
+    assert(ti.selection == "b")
+    ti.selection = "c"
+    assert(ti.selection == "c")
+    # Assign value not present among choices
+    with pytest.raises(ValueError):
+        ti.selection = "d"
+
 
 
 def test_m2o():

@@ -116,6 +116,28 @@ class Char(BaseField):
         return super().__validate__(instance, value)
 
 
+class Selection(Char):
+    """ This field works exactly like a Char does,
+    but limiting its possible values to the given ones.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        choices = kwargs.get("choices", [])
+        if not isinstance(choices, list):
+            raise TypeError("Parameter choices must be list, got {} instead".format(
+                choices.__class__.__name__))
+        for item in choices:
+            if not isinstance(item, str):
+                raise ValueError("Choices must be strings")
+        self._choices = choices
+
+    def __validate__(self, instance, value):
+        if value is not None:
+            if value not in self._choices:
+                raise ValueError("Invalid value '{}'. Valid values for this field are: {}".format(
+                    value, ", ".join(self._choices)))
+        return super().__validate__(instance, value)
+
 class Integer(BaseField):
     """ Field Class for storing integer numbers
     """
@@ -160,7 +182,6 @@ class DateTime(BaseField):
                     raise ValueError(
                         "Cannot convert '{}' to datetime".format(str(value)))
         return super().__validate__(instance, value)
-
 
 
 class RelationalField(BaseField):
