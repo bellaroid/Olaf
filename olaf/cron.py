@@ -5,6 +5,8 @@ from olaf.tools.safe_eval import safe_eval
 from olaf.tools.environ import Environment
 from multiprocessing import Pool, TimeoutError
 from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+import dateutil
 import threading
 import logging
 import time
@@ -15,7 +17,8 @@ logger = logging.getLogger(__name__)
 # Locals available within job execution context
 LOCALS = {
     "time": time,
-    "datetime": datetime, 
+    "dateutil": dateutil, 
+    "datetime": datetime,
     "timedelta": timedelta, 
     "logger": logger
 }
@@ -57,7 +60,8 @@ class Scheduler(metaclass=SchedulerMeta):
         for job in jobs:
             now = datetime.now()
             if now > job["nextcall"]:
-                new_nextcall = now + timedelta(seconds=job["interval"])
+                delta_kwarg = {job["interval_type"]: job["interval"]}
+                new_nextcall = now + relativedelta(**delta_kwarg)
                 conn.db["base.cron"].update_one(
                     {"_id": job["_id"]},
                     {"$set": {"nextcall": new_nextcall }})
@@ -93,9 +97,15 @@ class Scheduler(metaclass=SchedulerMeta):
         while self.running:
             for job_id, job in self.jobs.items():
                 # Nextcall overpassed, execute job
-                if datetime.now() > job["nextcall"]:
+                now = datetime.now()
+                if now > job["nextcall"]:
                     self.run(job)
-                    new_nextcall = datetime.now() + timedelta(seconds=job["interval"])
+                    delta_kwarg = {job["interval_type"]: job["interval"]}
+                    # TODO: Reusing 'now' reduces time drifting, but
+                    # will make the job fall behind the nextcall if it
+                    # takes longer than its delta, and therefore the app
+                    # won't run it again until restart.
+                    new_nextcall = now + relativedelta(**delta_kwarg)
                     # Update Internal Value
                     self.jobs[job_id]["nextcall"] = new_nextcall
                     # Update Database Entry

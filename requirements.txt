@@ -6,4 +6,5 @@ pyyaml
 pyjwt
 Jinja2
 python-dotenv
+python-dateutil
 git+https://github.com/Marco-Sulla/python-frozendict

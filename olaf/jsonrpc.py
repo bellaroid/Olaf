@@ -3,6 +3,7 @@ from olaf import registry
 from olaf.db import Connection
 from olaf.http import Request, Response, JsonResponse, route
 from olaf.tools import config
+from olaf.models import Model
 from olaf.security import jwt_required
 from olaf.tools.environ import Environment
 from werkzeug.exceptions import BadRequest
@@ -137,4 +138,9 @@ def call_method(params, model, method):
         args =   params.get("args", [])
         kwargs = params.get("kwargs", {})
         result = getattr(docset, method)(*args, **kwargs)
+        # Docsets must be serialized before being returned.
+        # This happens because PyMongo cursor can't be used
+        # outside the transaction.
+        if isinstance(result, Model):
+            result = result.read()
     return result

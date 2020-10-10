@@ -9,6 +9,7 @@ class Cron(models.Model):
     status =    fields.Char(max_length=32, required=True)
     nextcall =  fields.DateTime(required=True)
     interval =  fields.Integer(required=True)
+    interval_type = fields.Selection(required=True, choices=["seconds", "minutes", "hours", "days", "weeks", "months", "years"])
     user_id =   fields.Many2one("base.user", required=True)
     code =      fields.Char(required=True)
 
