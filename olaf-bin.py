@@ -1,7 +1,6 @@
 import os
 import time
 from olaf.http import Request, Response, route, dispatch
-from frozendict import frozendict
 from olaf.tools import initialize, config
 from werkzeug.serving import run_simple
 from werkzeug.local import Local, LocalManager
