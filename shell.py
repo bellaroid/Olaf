@@ -12,9 +12,13 @@ ipython -i shell.py
 from bson import ObjectId
 from olaf import registry
 from olaf.tools import initialize
+from olaf.storage import AppContext
 from olaf.tools.environ import Environment
 
-initialize(shell=True)
+ctx = AppContext()
+ctx.write("shell", True)
+
+initialize()
 
 uid = ObjectId("000000000000000000000000")
 env = Environment(uid)
