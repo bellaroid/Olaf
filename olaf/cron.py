@@ -1,6 +1,7 @@
 from olaf import registry
 from olaf.db import Connection
 from olaf.tools import config
+from olaf.storage import AppContext
 from olaf.tools.safe_eval import safe_eval
 from olaf.tools.environ import Environment
 from multiprocessing import Pool, TimeoutError
@@ -50,6 +51,17 @@ class Scheduler(metaclass=SchedulerMeta):
     def start(self):
         # Prevent reinitializing scheduler with this method
         if self.jobs is not None:
+            return
+
+        # Prevent from starting if explicitly disabled in config
+        if config.SCHEDULER_DISABLE:
+            logger.warning("Unable to start scheduler (disabled per config)")
+            return
+
+        # Prevent from starting while in shell context
+        ctx = AppContext()
+        if ctx.read("shell"):
+            logger.warning("Scheduler is disabled in shell context")
             return
 
         conn = Connection()

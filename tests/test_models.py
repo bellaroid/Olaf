@@ -35,7 +35,7 @@ class tCoModel(models.Model):
 
 
 # Initialize App Engine After All Model Classes Are Declared
-initialize(shell=True)
+initialize()
 
 
 def test_unicity():

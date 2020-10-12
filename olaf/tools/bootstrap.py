@@ -20,7 +20,7 @@ file_name = "manifest.yml"
 root_uid = bson.ObjectId("000000000000000000000000")
 
 
-def initialize(shell=False):
+def initialize():
     """
     Olaf Bootstraping Function
     """
@@ -253,24 +253,11 @@ def initialize(shell=False):
     # Create Jinja2 Templating Environment
     j2env.build(template_paths)
     # Start scheduler
-    if not shell:
-        start_scheduler()
-    else:
-        logger.warning("Scheduler is disabled in shell context")
+    logger.info("Starting Scheduler Process")
+    Scheduler(heartbeat=config.SCHEDULER_HEARTBEAT) 
     # Generate route map
     route.build_url_map()
     logger.info(color("System Ready", fg="white", bold=True))
-
-
-def start_scheduler():
-    from . import config
-    disable = config.SCHEDULER_DISABLE
-    hb = config.SCHEDULER_HEARTBEAT
-    if disable:
-        logger.warning("Scheduler is Disabled")
-        return
-    logger.info("Starting Scheduler Process")
-    Scheduler(heartbeat=hb)
 
 
 def manifest_parser():

@@ -4,8 +4,6 @@ from olaf import registry
 from olaf.tools import initialize
 from olaf.tools.environ import Environment
 
-initialize(shell=True)
-
 uid = ObjectId("000000000000000000000000")
 env = Environment(uid)
 self = registry["base.user"](env, {"_id": uid})
