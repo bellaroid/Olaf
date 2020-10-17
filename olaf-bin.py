@@ -2,6 +2,7 @@ import os
 import time
 from olaf.http import Request, Response, route, dispatch
 from olaf.tools import initialize, config
+from olaf.storage import AppContext
 from werkzeug.serving import run_simple
 from werkzeug.local import Local, LocalManager
 from werkzeug.middleware.shared_data import SharedDataMiddleware
@@ -17,7 +18,21 @@ def create_app():
     local = Local()
     local_manager = LocalManager([local])
     app = local_manager.make_middleware(Olaf())
-    app = SharedDataMiddleware(app, {'/static': ('olaf', 'static')})
+    app = set_statics(app)
+    return app
+
+
+def set_statics(app):
+    ctx = AppContext()
+    modules = ctx.read("modules")
+    for module_name in ctx.read("sorted_modules"):
+        if modules[module_name]["static"] == True:
+            if modules[module_name]["base"] == True:
+                app = SharedDataMiddleware(
+                    app, {"/base": ("olaf.addons.base", 'static')})
+            else:
+                app = SharedDataMiddleware(
+                    app, {"/{}".format(module_name): (module_name, 'static')})
     return app
 
 

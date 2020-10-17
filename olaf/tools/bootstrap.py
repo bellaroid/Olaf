@@ -10,6 +10,7 @@ import signal
 from . import config
 from olaf.db import Connection
 from olaf.http import route, j2env
+from olaf.storage import AppContext
 from olaf.tools.environ import Environment
 from olaf.fields import One2many, Many2many, Many2one
 from olaf.cron import Scheduler
@@ -248,6 +249,10 @@ def initialize():
         # Prepend template directory of this module
         template_paths.insert(0, os.path.join(
             modules[module_name]["path"], module_name, "templates"))
+    # Make module data available in app context
+    ctx = AppContext()
+    ctx.write("modules", modules)
+    ctx.write("sorted_modules", sorted_modules)
     # At this point, all model classes should be loaded in the registry
     load_deletion_constraints()
     # Create Jinja2 Templating Environment
@@ -302,10 +307,13 @@ def scan_addons_dir(addons_dir, modules_dict, base=False):
                         "Parsing Manifest File at {}".format(cur_dir))
                     manifest = yaml.safe_load(
                         open(os.path.join(cur_dir, file)))
+                    # Verify if module contains a static folder
+                    static = os.path.isdir(os.path.join(cur_dir, "static"))
                     modules_dict[path] = {
                         "manifest": manifest,
                         "path": addons_dir,
-                        "base": base}
+                        "base": base,
+                        "static": static}
 
 
 def toposort_modules(modules):
