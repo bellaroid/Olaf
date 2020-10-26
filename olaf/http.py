@@ -7,13 +7,20 @@ from werkzeug.wrappers import Request as WZRequest, Response as WZResponse
 from werkzeug.exceptions import BadRequest
 from werkzeug.wrappers.json import JSONMixin
 from werkzeug.wrappers.cors import CORSResponseMixin
-from werkzeug.routing import Map, Rule, NotFound
+from werkzeug.routing import Map, Rule, NotFound, MethodNotAllowed, BadHost, BadRequest, HTTPException, RoutingException, ValidationError
 from olaf import registry
 from olaf.tools import config
 
 
 logger = logging.getLogger(__name__)
-
+WZ_ROUTING_EXCEPTIONS = (
+    BadHost, 
+    BadRequest, 
+    HTTPException, 
+    MethodNotAllowed, 
+    NotFound, 
+    RoutingException, 
+    ValidationError,)
 
 class Request(WZRequest, JSONMixin):
     """ Standard Werkzeug Request with JSON Mixin """
@@ -139,7 +146,7 @@ def dispatch(env, start_response):
     try:
         endpoint, values = urls.match()
         response = endpoint(request, **values)
-    except NotFound as e:
+    except WZ_ROUTING_EXCEPTIONS as e:
         return e(env, start_response)
 
     # Add CORS headers to all responses
