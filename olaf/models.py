@@ -482,6 +482,17 @@ class Model(metaclass=ModelMeta):
         # Otherwise return mapped list
         return [getattr(rec, field) for rec in self]
 
+    def filtered(self, query):
+        """ Returns a docset that fulfills
+        the given query and it's also
+        a subset of the current one.
+        """
+        if not isinstance(query, dict):
+            raise ValueError(
+                "Query should be of type dict, " 
+                "got {} instead".format(query.__class__.__name__))
+        return self.search({"$and": [self._query, query]})
+
     def get(self, external_id):
         """ Finds a single document by its external id """
         mod_data = self.env["base.model.data"].search(
