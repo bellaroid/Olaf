@@ -178,6 +178,22 @@ def test_mapped():
     assert(c1._id in docset.ids())
     assert(c2._id in docset.ids())
 
+def test_filtered():
+    """ Test filtered method """
+    o1 = self.env["test.models.model"].create({"name": "Filtered01", "age": 10})
+    o2 = self.env["test.models.model"].create({"name": "Filtered02", "age": 20})
+    o3 = self.env["test.models.model"].create({"name": "Filtered03", "age": 30})
+    o4 = self.env["test.models.model"].create({"name": "Filtered04", "age": 40})
+    docset = self.env["test.models.model"].search({"name": {"$regex": "^Filtered"}})
+    docset = docset.filtered({"age": {"$gt": 25}})
+    assert(isinstance(docset, Model))
+    assert(len(docset) == 2)
+    assert(o1 not in docset)
+    assert(o2 not in docset)
+    assert(o3 in docset)
+    assert(o4 in docset)
+    
+
 def test_model_finish():
     """ Clean previous tests """
     conn = db.Connection()
