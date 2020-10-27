@@ -101,6 +101,9 @@ class Model(metaclass=ModelMeta):
     def __bool__(self):
         return self.count() > 0
 
+    def __len__(self):
+        return self.count()
+
     def search(self, query):
         """ Return a new set of documents """
         cursor = conn.db[self._name].find(query, session=self.env.session)
