@@ -1,4 +1,5 @@
 import logging
+import traceback
 from olaf import registry
 from olaf.db import Connection
 from olaf.http import Request, Response, JsonResponse, route
@@ -34,7 +35,7 @@ def jsonrpc_dispatcher(uid, request):
                 "message": "Parse error"
             },
             "jsonrpc": "2.0"
-        })
+        }, status=400)
 
     # Ensure basic parameters are present
     if not set(data).issubset({"id", "method", "params", "jsonrpc"}):
@@ -45,8 +46,9 @@ def jsonrpc_dispatcher(uid, request):
                 "message": "Invalid Request"
             },
             "jsonrpc": "2.0"
-        })
+        }, status=400)
 
+    status = 200
     # Handle CALL method
     if data["method"] == "call":
         try:
@@ -58,6 +60,8 @@ def jsonrpc_dispatcher(uid, request):
             }
         except Exception as e:
             _logger.error("Exception during RPC Call: {}".format(str(e)))
+            traceback.print_exc()
+            status = 500
             result = {
                 "id": data["id"],
                 "jsonrpc": "2.0",
@@ -68,6 +72,7 @@ def jsonrpc_dispatcher(uid, request):
             }
     else:
         # Method not found
+        status = 500
         result = {
             "id": data["id"],
             "error": {
@@ -77,7 +82,7 @@ def jsonrpc_dispatcher(uid, request):
             "jsonrpc": "2.0"
         }
 
-    return JsonResponse(result)
+    return JsonResponse(result, status=status)
 
 
 def handle_call(data, uid):
