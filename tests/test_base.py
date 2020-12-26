@@ -24,6 +24,10 @@ def test_password():
     # Assign new password and verify
     user.password = "Apple"
     assert(user.check_password("Apple"))
-    # Delete user
+
+def test_finish():
+    """ Clean previous tests """
+    # Create a new user
+    user = self.search({"email": "test@email.com"})
     user.unlink()
 
