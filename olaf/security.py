@@ -133,9 +133,14 @@ def check_access(model_name, operation, uid):
             "Operation: '{}' - User: '{}'".format(
                 model_name, operation, user["_id"]))
 
-    # Search for all ACLs associated to all this groups
+    # Search for ACLs associated to all of these groups
+    # and also for ACLs not associated to any group (Globals)
     acls = conn.db["base.model.access"].find(
-        {"group_id": {"$in": groups}, "model": model_name})
+        {
+            "model": model_name,
+            "$or": [
+                {"group_id": {"$in": groups}}, 
+                {"group_id": None}]})
 
     # Compute access
     allow_list = [acl[operation_field_map[operation]] for acl in acls]
@@ -149,5 +154,3 @@ def check_access(model_name, operation, uid):
                 model_name, operation, user))
     
     return
-        
-
