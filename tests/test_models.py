@@ -175,8 +175,8 @@ def test_mapped():
     assert("Map01" in mapped)
     assert("Map02" in mapped)
     docset = docset.mapped("cascade_id")
-    assert(c1._id in docset.ids())
-    assert(c2._id in docset.ids())
+    assert(c1._id in docset.ids)
+    assert(c2._id in docset.ids)
 
 def test_filtered():
     """ Test filtered method """

@@ -46,7 +46,7 @@ class BaseField:
         if getattr(instance, "_implicit_save", True):
             value = self.__validate__(instance, value)
             instance.env.cache.clear()
-            instance.env.cache.append("write", instance._name, instance.ids(), {self.attr: value})
+            instance.env.cache.append("write", instance._name, instance.ids, {self.attr: value})
             instance.env.cache.flush()
         return None
 

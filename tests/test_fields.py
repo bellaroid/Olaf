@@ -233,7 +233,7 @@ def test_o2m():
     rec.o2m = [('create', {"char_max_req": "o2mc_5"}),
                ('create', {"char_max_req": "o2mc_6"})]
     assert(rec.o2m.count() == 2)
-    rec.o2m = [('replace', recs.ids())]
+    rec.o2m = [('replace', recs.ids)]
     assert(rec.o2m == recs)
 
 
@@ -288,7 +288,7 @@ def test_m2m():
     rec.m2m = [('create', {"name": "m2m_5"}),
                ('create', {"name": "m2m_6"})]
     assert(rec.m2m.count() == 2)
-    rec.m2m = [('replace', recs.ids())]
+    rec.m2m = [('replace', recs.ids)]
     assert(rec.m2m == recs)
 
     # Uniqueness of the compound key

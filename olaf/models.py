@@ -46,6 +46,10 @@ class Model(metaclass=ModelMeta):
     _id = Identifier()
     active = Boolean(default=True)
 
+    @property
+    def ids(self):
+        return self._ids()
+
     def __init__(self, environment, query=None):
         # Ensure _name attribute definition on child
         if (self._name is None):
@@ -219,7 +223,7 @@ class Model(metaclass=ModelMeta):
                 base_dict[field_name] = value
 
         # Load base_dict into write cache
-        self.env.cache.append("write", self._name, self.ids(), base_dict)
+        self.env.cache.append("write", self._name, self.ids, base_dict)
         
         # Load x2many field data into write cache
         for field_name, value in x2m_dict.items():
@@ -335,7 +339,7 @@ class Model(metaclass=ModelMeta):
         """
         # Perform unlink access check
         check_access(self._name, "unlink", self.env.context["uid"])
-        ids = self.ids()
+        ids = self.ids
         if self._name in registry.__deletion_constraints__:
             for constraint in registry.__deletion_constraints__[self._name]:
                 mod, fld, cons = constraint
@@ -461,7 +465,7 @@ class Model(metaclass=ModelMeta):
         if self.count() != 1:
             raise ValueError("Expected singleton")
 
-    def ids(self, as_strings=False):
+    def _ids(self, as_strings=False):
         """ Returns a list of ObjectIds contained 
         in the current DocSet
         """
@@ -480,7 +484,7 @@ class Model(metaclass=ModelMeta):
             rel_model = self.env[field_inst._comodel_name]
             for rec in self:
                 for rel in getattr(rec, field):
-                    ids = ids | set(rel.ids())
+                    ids = ids | set(rel.ids)
             return rel_model.search({"_id": {"$in": list(ids)}})
         # Otherwise return mapped list
         return [getattr(rec, field) for rec in self]

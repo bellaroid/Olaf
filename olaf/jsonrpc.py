@@ -115,7 +115,7 @@ def handle_call(data, uid):
 def call_method(params, model, method):
     if method == "search":
         query = params.get("query", {})
-        result = model.search(query).ids()
+        result = model.search(query).ids
     elif method == "read":
         ids = params.get("ids", [])
         fields = params.get("fields", [])
