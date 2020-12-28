@@ -135,12 +135,9 @@ class Connection(metaclass=ConnectionMeta):
         }
 
         # Activate Replicaset
-        if config.DB_REPLICASET_ENABLE:
-            params["replicaset"] = config.DB_REPLICASET_ID
-        else:
-            logger.warning(
-                "REPLICASET DISABLED. Database transactions are off.")
+        params["replicaset"] = config.DB_REPLICASET_ID
 
+        # Instantiate MongoClient
         client = MongoClient(connstr, **params)
 
         # Verify Connection

@@ -99,16 +99,12 @@ def handle_call(data, uid):
     conn = Connection()
     client = conn.cl
 
-    if config.DB_REPLICASET_ENABLE:    
-        with client.start_session() as session:
-            with session.start_transaction():
-                env = Environment(uid, session)
-                model = cls(env)
-                result = call_method(p, model, method)
-    else:
-        env = Environment(uid)
-        model = cls(env)
-        result = call_method(p, model, method)
+    with client.start_session() as session:
+        with session.start_transaction():
+            env = Environment(uid, session)
+            model = cls(env)
+            result = call_method(p, model, method)
+    
     return result
 
 

@@ -214,16 +214,11 @@ def initialize():
         conn = Connection()
         client = conn.cl
 
-        if config.DB_REPLICASET_ENABLE:
-            with client.start_session() as session:
-                with session.start_transaction():
-                    # Create environment with session
-                    env = Environment(root_uid, session)
-                    load_file_data(env, module_name, module_data)
-        else:
-            # Create environment without session (MongoDB transactions disabled)
-            env = Environment(root_uid)
-            load_file_data(env, module_name, module_data)
+        with client.start_session() as session:
+            with session.start_transaction():
+                # Create environment with session
+                env = Environment(root_uid, session)
+                load_file_data(env, module_name, module_data)
 
     signal.signal(signal.SIGTERM, app_shutdown)
     signal.signal(signal.SIGINT, app_shutdown)

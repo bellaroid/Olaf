@@ -139,17 +139,10 @@ class Scheduler(metaclass=SchedulerMeta):
         conn = Connection()
         client = conn.cl
 
-        if config.DB_REPLICASET_ENABLE:    
-            with client.start_session() as session:
-                with session.start_transaction():
-                    env = Environment(job["_id"], session)
-                    _locals = {**LOCALS, "env": env}
-                    safe_eval(job["code"], _locals)
-                    return
-        else:
-            env = Environment(job["_id"])
-            _locals = {**LOCALS, "env": env}
-            safe_eval(job["code"], _locals)
-        
-        
-        
+        with client.start_session() as session:
+            with session.start_transaction():
+                env = Environment(job["_id"], session)
+                _locals = {**LOCALS, "env": env}
+                safe_eval(job["code"], _locals)
+                return
+                

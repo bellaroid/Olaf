@@ -39,7 +39,6 @@ class Config:
     DB_HOST =               Setting("str",  os.getenv("MONGODB_HOST", "localhost"))
     DB_PORT =               Setting("int",  os.getenv("MONGODB_PORT", 27017))
     DB_TOUT =               Setting("int",  os.getenv("MONGODB_TIMEOUT", 2000))
-    DB_REPLICASET_ENABLE =  Setting("bool", os.getenv("MONGODB_REPLICASET_ENABLE", False))
     DB_REPLICASET_ID =      Setting("str",  os.getenv("MONGODB_REPLICASET_ID", "rs0"))
     JWT_EXPIRATION_TIME =   Setting("int",  os.getenv("JWT_EXPIRATION_TIME", 2000))
     ROOT_PASSWORD =         Setting("str",  os.getenv("ROOT_PASSWORD", "olaf"))
