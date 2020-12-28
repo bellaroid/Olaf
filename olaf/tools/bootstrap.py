@@ -117,6 +117,8 @@ def initialize():
                                                 - ref2
                                 """
                                 tuples = list()
+                                # TODO: Review and retest create, add and replace
+                                # using YAML files. Create unit tests if possible.
                                 for d in value:
                                     # Every item is a dictionary of one element
                                     # {'operation_name': value}
@@ -132,11 +134,10 @@ def initialize():
                                     elif op == "replace":
                                         value = list()
                                         for i in d[op]:
-                                            oid = env[field._comodel_name].get(
-                                                d[op])
+                                            oid = env[field._comodel_name].get(i)
                                             if not oid:
                                                 raise ValueError(
-                                                    "Reference {} not found in database".format(d[op]))
+                                                    "Reference {} not found in database".format(i))
                                             value.append(oid)
                                     else:
                                         raise ValueError(
