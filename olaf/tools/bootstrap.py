@@ -63,7 +63,7 @@ def initialize():
             data = list()
 
             if split[1] == ".csv":
-                model = split[0] if not security else "base.model.access"
+                model = split[0] if not security else "base.acl"
                 with open(fname) as csv_file:
                     csv_reader = csv.reader(csv_file, delimiter=",")
                     first_line = True

@@ -33,5 +33,6 @@ class Group(models.Model):
     _name = "base.group"
 
     name = fields.Char(required=True, max_length=255)
-    model_access_ids = fields.One2many("base.model.access", inversed_by="group_id")
+    model_access_ids = fields.One2many("base.acl", inversed_by="group_id")
+    document_access_ids = fields.Many2many("base.dls", relation="base.group.acl.rel", field_a="group_oid", field_b="acl_oid")
 

@@ -104,7 +104,7 @@ def token(request):
 class AccessError(Exception):
     pass
 
-def check_access(model_name, operation, uid):
+def check_access(model_name, operation, uid, docset):
     """ 
     Check if a given user can perform 
     a given operation on a given model
@@ -133,9 +133,25 @@ def check_access(model_name, operation, uid):
             "Operation: '{}' - User: '{}'".format(
                 model_name, operation, user["_id"]))
 
-    # Search for ACLs associated to all of these groups
-    # and also for ACLs not associated to any group (Globals)
-    acls = conn.db["base.model.access"].find(
+    # The following function calls will raise an AccessError
+    # if user doesn't have the required privileges to operate
+    # the requested model.
+    check_ACL(model_name, operation, groups, user)
+    check_DLS(model_name, operation, groups, user, docset)
+
+    return
+
+def check_ACL(model_name, operation, groups, user):
+    """
+    Computes the ACL (Access Control List)
+    Raises AccessError if the given user cannot perform
+    the requested operation on the requested model.
+    """
+
+    # Search for ACL Rules associated to all of these groups
+    # and also for ACL Ruless not associated to any group (Globals)
+    conn = Connection()
+    acl_rules = conn.db["base.acl"].find(
         {
             "model": model_name,
             "$or": [
@@ -143,7 +159,7 @@ def check_access(model_name, operation, uid):
                 {"group_id": None}]})
 
     # Compute access
-    allow_list = [acl[operation_field_map[operation]] for acl in acls]
+    allow_list = [rule[operation_field_map[operation]] for rule in acl_rules]
     allow = reduce(lambda x, y: x | y, allow_list)
 
     if not allow:
@@ -154,3 +170,45 @@ def check_access(model_name, operation, uid):
                 model_name, operation, user))
     
     return
+
+def check_DLS(model_name, operation, groups, user, docset):
+    """
+    Builds the DLS (Document Level Security) query.
+    Raises AccessError if the given user cannot perform
+    the requested operation on the requested DocSet.
+    """
+    pass
+
+def build_DLS_query(model_name, operation, uid):
+    """
+    Builds the DLS query.
+
+    This mongo query is the combination of all individual 
+    mongo queries that affect the current user for a 
+    given operation on a given model.
+
+    DLS rules not associated to any group are considered
+    as "global" and they affect everyone.
+
+    The resulting query will have the following format:
+    {
+        "$and": [
+            {"global_rule_1": "..."},
+            {"global_rule_2": "..."},
+            {
+                "$or": [
+                    {"user_rule_1": "..."},
+                    {"user_rule_2": "..."}
+                ]
+            }
+        ]
+    }
+
+    From the previous example, we can see global rules
+    constraint the domain of documents; and so do the
+    combination of all user specific rules. However,
+    one user specific rule may relax other user
+    specific rules previously found (but not a global one).
+    """
+    pass
+    
