@@ -2,6 +2,7 @@ import jwt
 import datetime
 from bson import ObjectId
 from olaf.db import Connection
+from olaf.tools.safe_eval import safe_eval
 from functools import reduce
 from olaf.http import Response, JsonResponse, route
 from olaf.tools import config
@@ -171,18 +172,10 @@ def check_ACL(model_name, operation, groups, user):
     
     return
 
-def check_DLS(model_name, operation, groups, user, docset):
+def check_DLS(model_name, operation, groups, user, object):
     """
     Builds the DLS (Document Level Security) query.
-    Raises AccessError if the given user cannot perform
-    the requested operation on the requested DocSet.
-    """
-    pass
-
-def build_DLS_query(model_name, operation, uid):
-    """
-    Builds the DLS query.
-
+    
     This mongo query is the combination of all individual 
     mongo queries that affect the current user for a 
     given operation on a given model.
@@ -209,6 +202,52 @@ def build_DLS_query(model_name, operation, uid):
     combination of all user specific rules. However,
     one user specific rule may relax other user
     specific rules previously found (but not a global one).
+    
+    Raises AccessError if the given user cannot perform
+    the requested operation on the requested DocSet.
     """
-    pass
+
+    conn = Connection()
+    
+    # Search for DLS Rules associated to all of these groups
+    user_rules = conn.db["base.acl"].find({
+        "model": model_name,
+        "group_id": {"$in": groups}})
+
+    # ...and also for DLS Rules not associated to any group (Globals)
+    global_rules = conn.db["base.acl"].find({
+        "model": model_name,
+        "group_id": None})
+
+    # Initialize queries list
+    user_queries = []
+    global_queries = []
+
+    # Evaluate global expressions and add them to their list
+    for rule in global_rules:
+        query = None 
+        safe_eval("query = {}".format(rule.query), {"user": user})
+        if not isinstance(query, dict):
+            raise ValueError(
+                "Invalid query in DLS rule '{}' ({}): '{}'".format(
+                    rule.name, rule._id, rule.query))
+        global_queries.append(query)
+
+    # Evaluate user expressions and add them to their list
+    for rule in user_rules:
+        query = None 
+        safe_eval("query = {}".format(rule.query), {"user": user})
+        if not isinstance(query, dict):
+            raise ValueError(
+                "Invalid query in DLS rule '{}' ({}): '{}'".format(
+                    rule.name, rule._id, rule.query))
+        user_queries.append(query)
+    
+    # Build query structure
+    global_queries.append({"$or": user_queries})
+    q = {"$and": global_queries}
+
+    # Get documents from database
+    conn.db[model_name].find(q)
+
     
