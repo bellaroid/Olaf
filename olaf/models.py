@@ -149,7 +149,7 @@ class Model(metaclass=ModelMeta):
 
     def create(self, vals_list):
         # Perform create access check
-        check_access(self._name, "create", self.env.context["uid"])
+        check_access(self, "create")
 
         # Convert vals to list if a dict was provided
         if isinstance(vals_list, dict):
@@ -207,7 +207,7 @@ class Model(metaclass=ModelMeta):
     def write(self, vals):
         """ Write values to the documents in the current set"""
         # Perform write access check
-        check_access(self._name, "write", self.env.context["uid"])
+        check_access(self, "write")
         raw_data = self.validate(vals, True)
 
         # Create two separate dictionaries for handling base and x2many fields
@@ -240,7 +240,7 @@ class Model(metaclass=ModelMeta):
         renders the representation of relational fields (Many2one and x2many).
         """
         # Perform read access check
-        check_access(self._name, "read", self.env.context["uid"])
+        check_access(self, "read")
 
         if len(fields) == 0:
             fields = self._fields.keys()
@@ -338,7 +338,7 @@ class Model(metaclass=ModelMeta):
         Return the amount of deleted elements.
         """
         # Perform unlink access check
-        check_access(self._name, "unlink", self.env.context["uid"])
+        check_access(self, "unlink")
         ids = self.ids
         if self._name in registry.__deletion_constraints__:
             for constraint in registry.__deletion_constraints__[self._name]:

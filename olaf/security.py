@@ -6,6 +6,7 @@ from olaf.tools.safe_eval import safe_eval
 from functools import reduce
 from olaf.http import Response, JsonResponse, route
 from olaf.tools import config
+from olaf.tools.environ import Environment
 from werkzeug.exceptions import BadRequest
 from werkzeug.security import check_password_hash
 
@@ -105,11 +106,14 @@ def token(request):
 class AccessError(Exception):
     pass
 
-def check_access(model_name, operation, uid, docset):
+def check_access(docset, operation):
     """ 
     Check if a given user can perform 
     a given operation on a given model
     """
+    # Read docset attributes
+    model_name = docset._name
+    uid = docset.env.context["uid"]
 
     # Root user bypasses all security checks
     if uid == ObjectId("000000000000000000000000"):
@@ -172,7 +176,7 @@ def check_ACL(model_name, operation, groups, user):
     
     return
 
-def check_DLS(model_name, operation, groups, user, object):
+def check_DLS(model_name, operation, groups, user, docset):
     """
     Builds the DLS (Document Level Security) query.
     
@@ -186,12 +190,13 @@ def check_DLS(model_name, operation, groups, user, object):
     The resulting query will have the following format:
     {
         "$and": [
+            {"whatever_the_user_requested": "..."},
             {"global_rule_1": "..."},
             {"global_rule_2": "..."},
             {
                 "$or": [
-                    {"user_rule_1": "..."},
-                    {"user_rule_2": "..."}
+                    {"group_rule_1": "..."},
+                    {"group_rule_2": "..."}
                 ]
             }
         ]
@@ -200,7 +205,7 @@ def check_DLS(model_name, operation, groups, user, object):
     From the previous example, we can see global rules
     constraint the domain of documents; and so do the
     combination of all user specific rules. However,
-    one user specific rule may relax other user
+    one group specific rule may relax other group
     specific rules previously found (but not a global one).
     
     Raises AccessError if the given user cannot perform
@@ -210,18 +215,18 @@ def check_DLS(model_name, operation, groups, user, object):
     conn = Connection()
     
     # Search for DLS Rules associated to all of these groups
-    user_rules = conn.db["base.acl"].find({
+    group_rules = conn.db["base.dls"].find({
         "model": model_name,
         "group_id": {"$in": groups}})
 
     # ...and also for DLS Rules not associated to any group (Globals)
-    global_rules = conn.db["base.acl"].find({
+    global_rules = conn.db["base.dls"].find({
         "model": model_name,
         "group_id": None})
 
     # Initialize queries list
-    user_queries = []
-    global_queries = []
+    group_queries = []
+    global_queries = [docset._query]
 
     # Evaluate global expressions and add them to their list
     for rule in global_rules:
@@ -234,20 +239,35 @@ def check_DLS(model_name, operation, groups, user, object):
         global_queries.append(query)
 
     # Evaluate user expressions and add them to their list
-    for rule in user_rules:
+    for rule in group_rules:
         query = None 
         safe_eval("query = {}".format(rule.query), {"user": user})
         if not isinstance(query, dict):
             raise ValueError(
                 "Invalid query in DLS rule '{}' ({}): '{}'".format(
                     rule.name, rule._id, rule.query))
-        user_queries.append(query)
+        group_queries.append(query)
     
     # Build query structure
-    global_queries.append({"$or": user_queries})
+    global_queries.append({"$or": group_queries})
     q = {"$and": global_queries}
 
-    # Get documents from database
-    conn.db[model_name].find(q)
+    # Instantiate a DocSet (class Model)
+    dls_docset = docset.__class__(docset.env, q)
+
+    # If the docset the user has instantiated
+    # is different from the one we created by
+    # mixing the same query with all the 
+    # DLS queries, then we can safely say
+    # user can't perform the requested operation.
+    if not docset == dls_docset:
+        raise AccessError(
+            "Access Denied -- Not allowed "
+            "to perform the requested operation. "
+            "Model: {} - Operation: '{}' - "
+            "User: '{}'".format(
+                model_name, operation, user))
+
+    return
 
     
