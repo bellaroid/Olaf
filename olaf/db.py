@@ -85,6 +85,8 @@ class ModelRegistry(metaclass=ModelRegistryMeta):
                     for tup_ind in model_dict["_compound_indexes"]:
                         conn.db[attr._relation].create_index(
                             [(ind, DESCENDING) for ind in tup_ind], unique=True)
+                    # Add attribute to distinguish intermediate models from others
+                    model_dict["_intermediate"] = True
                     # Create metaclass
                     mod = ModelMeta("Model", (), model_dict)
                     self.__models__[attr._relation] = mod

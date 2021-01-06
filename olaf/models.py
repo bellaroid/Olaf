@@ -354,7 +354,15 @@ class Model(metaclass=ModelMeta):
                         related.unlink()
                 elif cons == "SET NULL":
                     if related.count() > 0:
-                        related.write({fld: None})
+                        intrm = getattr(related, "_intermediate", False)
+                        if not intrm:
+                            related.write({fld: None})
+                        else:
+                            # If the model we're working with is intermediate,
+                            # we've got to delete the relation instead, 
+                            # in order to avoid a NOT NULL constraint error 
+                            # and keep the collection clean.
+                            related.unlink()
                 else:
                     raise ValueError(
                         "Invalid deletion constraint '{}'".format(cons))
