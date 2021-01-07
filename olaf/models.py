@@ -3,7 +3,7 @@ from olaf.fields import BaseField, Identifier, Boolean, NoPersist, RelationalFie
 from olaf.db import Connection
 from bson import ObjectId
 from olaf import registry
-from olaf.security import check_access
+from olaf.security import check_access, build_DLS_query
 
 logger = logging.getLogger(__name__)
 conn = Connection()
@@ -110,8 +110,25 @@ class Model(metaclass=ModelMeta):
 
     def search(self, query):
         """ Return a new set of documents """
-        cursor = conn.db[self._name].find(query, session=self.env.session)
+        
+        # Create a list of groups this user belongs to
+        uid = self.env.context["uid"]
+        user_group_rels = conn.db["base.user.group.rel"].find({"user_oid": uid})
+        groups = [rel["group_oid"] for rel in user_group_rels]
+
+        # Build DLS query (Document Level Security)
+        dls_query = build_DLS_query(self._name, "read", groups, uid)
+        if dls_query:
+            # Constraint the provided query by intersecting it with the DLS query.
+            new_query = {"$and": [query, dls_query]}
+        else:
+            # No DLS query
+            new_query = query
+        
+        # Perform the requested query
+        cursor = conn.db[self._name].find(new_query, session=self.env.session)
         ids = [item["_id"] for item in cursor]
+        
         return self.__class__(self.env, {"_id": {"$in": ids}})
 
     def browse(self, ids):
@@ -141,7 +158,13 @@ class Model(metaclass=ModelMeta):
                 "Expected list, str or ObjectId, "
                 "got {} instead".format(ids.__class__.__name__))
 
-        return self.__class__(self.env, {"_id": {"$in": items}})
+        # Create a new docset out of the requested OIDs
+        docset_instance = self.__class__(self.env, {"_id": {"$in": items}})
+        
+        # Make sure the user has read access
+        check_access(docset_instance, "read")
+        
+        return docset_instance
 
     def count(self):
         """ Return the amount of documents in the current set """
@@ -239,9 +262,6 @@ class Model(metaclass=ModelMeta):
         database. If omitted, all fields will be read. This method also
         renders the representation of relational fields (Many2one and x2many).
         """
-        # Perform read access check
-        check_access(self, "read")
-
         if len(fields) == 0:
             fields = self._fields.keys()
         cache = dict()
@@ -510,11 +530,19 @@ class Model(metaclass=ModelMeta):
 
     def get(self, external_id):
         """ Finds a single document by its external id """
-        mod_data = self.env["base.model.data"].search(
+        mod_data = conn.db["base.model.data"].find_one(
             {"model": self._name, "name": external_id})
+        
         if not mod_data:
             return None
-        return self.search({"_id": mod_data.res_id})
+        
+        # Create a singleton docset
+        docset_instance = self.__class__(self.env, {"_id": mod_data["res_id"]})
+        
+        # Make sure the user has read access
+        check_access(docset_instance, "read")
+        
+        return docset_instance
 
     def with_context(self, **kwargs):
         """ Return a new instance of the current

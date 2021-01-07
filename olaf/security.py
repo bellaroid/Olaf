@@ -178,6 +178,31 @@ def check_ACL(model_name, operation, groups, user):
 
 def check_DLS(model_name, operation, groups, user, docset):
     """
+    Raises AccessError if the given user cannot perform
+    the requested operation on the requested DocSet.
+    """
+    q = build_DLS_query(model_name, operation, groups, user)
+    
+    # Instantiate a DocSet (class Model)
+    dls_docset = docset.__class__(docset.env, q)
+
+    # If the docset the user has instantiated
+    # is different from the one we created by
+    # mixing the same query with all the 
+    # DLS queries, then we can safely say
+    # user can't perform the requested operation.
+    if not docset == dls_docset:
+        raise AccessError(
+            "Access Denied -- Not allowed "
+            "to perform the requested operation. "
+            "Model: {} - Operation: '{}' - "
+            "User: '{}'".format(
+                model_name, operation, user))
+
+    return
+
+def build_DLS_query(model_name, operation, groups, user):
+    """
     Builds the DLS (Document Level Security) query.
     
     This mongo query is the combination of all individual 
@@ -207,11 +232,7 @@ def check_DLS(model_name, operation, groups, user, docset):
     combination of all user specific rules. However,
     one group specific rule may relax other group
     specific rules previously found (but not a global one).
-    
-    Raises AccessError if the given user cannot perform
-    the requested operation on the requested DocSet.
     """
-
     conn = Connection()
     
     # Search for DLS Rules associated to all of these groups
@@ -226,7 +247,7 @@ def check_DLS(model_name, operation, groups, user, docset):
 
     # Initialize queries list
     group_queries = []
-    global_queries = [docset._query]
+    global_queries = []
 
     # Evaluate global expressions and add them to their list
     for rule in global_rules:
@@ -249,25 +270,12 @@ def check_DLS(model_name, operation, groups, user, docset):
         group_queries.append(query)
     
     # Build query structure
-    global_queries.append({"$or": group_queries})
-    q = {"$and": global_queries}
-
-    # Instantiate a DocSet (class Model)
-    dls_docset = docset.__class__(docset.env, q)
-
-    # If the docset the user has instantiated
-    # is different from the one we created by
-    # mixing the same query with all the 
-    # DLS queries, then we can safely say
-    # user can't perform the requested operation.
-    if not docset == dls_docset:
-        raise AccessError(
-            "Access Denied -- Not allowed "
-            "to perform the requested operation. "
-            "Model: {} - Operation: '{}' - "
-            "User: '{}'".format(
-                model_name, operation, user))
-
-    return
-
+    if len(group_queries) > 0:
+        global_queries.append({"$or": group_queries})
     
+    if len(global_queries) > 0:
+        q = {"$and": global_queries}
+    else:
+        return False
+
+    return q
