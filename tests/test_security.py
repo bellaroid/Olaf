@@ -34,7 +34,6 @@ def test_init():
     user = self.create({
         "name": "__TEST User",
         "email": "__TEST@email.com",
-        "age": 100,
         "password": "Banana",
         "group_ids": [("add", group)]
     })
@@ -53,13 +52,24 @@ def test_ACL_deny_create():
         })
 
 
-def test_ACL_deny_write():
-    # Attempt to modify a document
-    with pytest.raises(AccessError):
-        impersonated.write({"name": "shouldntchange"})
+def test_ACL_allow_create():
+    # Change allow_create setting on group
+    group.acl_ids.allow_create = True
+    # Attempt to create document
+    new_user = impersonated.create({
+        "name": "__TEST Create User",
+        "email": "__TEST@create.com",
+        "password": "Banana"
+    })
+    # Ensure new document exists
+    new_user.ensure_one()
 
 
 def test_ACL_deny_read():
+    # Attempt to access a document using search()
+    with pytest.raises(AccessError):
+        impersonated.search({"name": "__TEST Create User"})
+
     # Attempt to access a document using get()
     with pytest.raises(AccessError):
         impersonated.get("base.user.admin")
@@ -69,10 +79,54 @@ def test_ACL_deny_read():
         impersonated.browse(self.get("base.user.admin")._id)
 
 
+def test_ACL_allow_read():
+    # Change allow_write setting on group
+    group.acl_ids.allow_read = True
+
+    # Attempt to access a document using search()
+    usr = impersonated.search({"name": "__TEST Create User"})
+    usr.ensure_one()
+
+    # Attempt to access a document using get()
+    admin = impersonated.get("base.user.admin")
+    admin.ensure_one()
+
+    # Attempt to access a document using browse()
+    admin = impersonated.browse(self.get("base.user.admin")._id)
+    admin.ensure_one()
+
+
+def test_ACL_deny_write():
+    # Get previously created user
+    usr = impersonated.search({"name": "__TEST Create User"})
+    # Attempt to modify a document
+    with pytest.raises(AccessError):
+        usr.write({"name": "shouldntchange"})
+
+
+def test_ACL_allow_write():
+    # Change allow_write setting on group
+    group.acl_ids.allow_write = True
+    # Get previously created user
+    usr = impersonated.search({"name": "__TEST Create User"})
+    # Attempt to modify a document
+    usr.write({"name": "__TEST Modified"})
+    assert(usr.name == "__TEST Modified")
+
+
 def test_ACL_deny_unlink():
     # Attempt to delete a document using unlink()
     with pytest.raises(AccessError):
         impersonated.unlink()
+
+def test_ACL_allow_unlink():
+    # Change allow_unlink setting on group
+    group.acl_ids.allow_unlink = True
+    # Get previously created user
+    usr = impersonated.search({"name": "__TEST Modified"})
+    # Attempt to delete a document
+    usr.unlink()
+    assert(usr.count() == 0)
 
 
 def test_finish():

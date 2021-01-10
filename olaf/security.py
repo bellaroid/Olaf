@@ -106,7 +106,7 @@ def token(request):
 class AccessError(Exception):
     pass
 
-def check_access(docset, operation):
+def check_access(docset, operation, skip_DLS=False):
     """ 
     Check if a given user can perform 
     a given operation on a given model
@@ -142,7 +142,8 @@ def check_access(docset, operation):
     # if user doesn't have the required privileges to operate
     # the requested model.
     check_ACL(model_name, operation, groups, user)
-    check_DLS(model_name, operation, groups, user, docset)
+    if not skip_DLS:
+        check_DLS(model_name, operation, groups, user, docset)
 
     return
 
@@ -165,7 +166,10 @@ def check_ACL(model_name, operation, groups, user):
 
     # Compute access
     allow_list = [rule[operation_field_map[operation]] for rule in acl_rules]
-    allow = reduce(lambda x, y: x | y, allow_list)
+    if allow_list:
+        allow = reduce(lambda x, y: x | y, allow_list)
+    else:
+        allow = []
 
     if not allow:
         # Deny access
@@ -184,21 +188,23 @@ def check_DLS(model_name, operation, groups, user, docset):
     q = build_DLS_query(model_name, operation, groups, user)
     
     # Instantiate a DocSet (class Model)
-    dls_docset = docset.__class__(docset.env, q)
+    if q:
+        # q is False if there are no access rules
+        # affecting the current user and operation.
+        dls_docset = docset.__class__(docset.env, q)
 
-    # If the docset the user has instantiated
-    # is different from the one we created by
-    # mixing the same query with all the 
-    # DLS queries, then we can safely say
-    # user can't perform the requested operation.
-    if not docset == dls_docset:
-        raise AccessError(
-            "Access Denied -- Not allowed "
-            "to perform the requested operation. "
-            "Model: {} - Operation: '{}' - "
-            "User: '{}'".format(
-                model_name, operation, user))
-
+        # If the docset the user has instantiated
+        # is different from the one we created by
+        # mixing the same query with all the 
+        # DLS queries, then we can safely say
+        # user can't perform the requested operation.
+        if not docset == dls_docset:
+            raise AccessError(
+                "Access Denied -- Not allowed "
+                "to perform the requested operation. "
+                "Model: {} - Operation: '{}' - "
+                "User: '{}'".format(
+                    model_name, operation, user))
     return
 
 def build_DLS_query(model_name, operation, groups, user):

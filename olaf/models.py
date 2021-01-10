@@ -110,7 +110,13 @@ class Model(metaclass=ModelMeta):
 
     def search(self, query):
         """ Return a new set of documents """
-        
+        # Check read access, but skip DLS check.
+        # We perform the DLS check right here because
+        # we want no exceptions to be raised in case
+        # access is denied, but to restrict the domain
+        # of the search.
+        check_access(self, "read", skip_DLS=True)
+
         # Create a list of groups this user belongs to
         uid = self.env.context["uid"]
         user_group_rels = conn.db["base.user.group.rel"].find({"user_oid": uid})
@@ -363,26 +369,29 @@ class Model(metaclass=ModelMeta):
         if self._name in registry.__deletion_constraints__:
             for constraint in registry.__deletion_constraints__[self._name]:
                 mod, fld, cons = constraint
-                related = self.env[mod].search({fld: {"$in": ids}})
                 if cons == "RESTRICT":
+                    related = self.sudo().env[mod].search({fld: {"$in": ids}})
                     if related.count() > 0:
                         raise DeletionConstraintError(
                             "There are one or more records referencing "
                             "the current set. Deletion aborted.")
                 elif cons == "CASCADE":
+                    related = self.env[mod].search({fld: {"$in": ids}})
                     if related.count() > 0:
                         related.unlink()
                 elif cons == "SET NULL":
+                    intrm = getattr(self.env[mod], "_intermediate", False)
+                    related = self.sudo().env[mod].search({fld: {"$in": ids}})
                     if related.count() > 0:
-                        intrm = getattr(related, "_intermediate", False)
                         if not intrm:
-                            related.write({fld: None})
+                                related.write({fld: None})
                         else:
                             # If the model we're working with is intermediate,
                             # we've got to delete the relation instead, 
                             # in order to avoid a NOT NULL constraint error 
                             # and keep the collection clean.
-                            related.unlink()
+                            if related.count() > 0:
+                                related.unlink()
                 else:
                     raise ValueError(
                         "Invalid deletion constraint '{}'".format(cons))
