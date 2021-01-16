@@ -34,5 +34,5 @@ class Group(models.Model):
 
     name = fields.Char(required=True, max_length=255)
     acl_ids = fields.One2many("base.acl", inversed_by="group_id")
-    dls_ids = fields.Many2many("base.dls", relation="base.group.dls.rel", field_a="group_oid", field_b="acl_oid")
+    dls_ids = fields.Many2many("base.dls", relation="base.group.dls.rel", field_a="group_oid", field_b="dls_oid")
 

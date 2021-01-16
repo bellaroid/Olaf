@@ -19,8 +19,8 @@ class DocumentLevelSecurityRule(models.Model):
 
     name =          fields.Char(required=True)
     model =         fields.Char(required=True)
-    query_force =   fields.Char(required=True)
-    group_ids =     fields.Many2many("base.group", relation="base.group.dls.rel", field_b="group_oid", field_a="dls_oid")
+    query =         fields.Char(required=True)
+    group_ids =     fields.Many2many("base.group", relation="base.group.dls.rel", field_a="dls_oid", field_b="group_oid")
     on_read =       fields.Boolean(required=True, default=True)
     on_write =      fields.Boolean(requried=True, default=True)
     on_create =     fields.Boolean(required=True, default=True)

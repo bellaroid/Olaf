@@ -10,11 +10,18 @@ from olaf.tools.environ import Environment
 from werkzeug.exceptions import BadRequest
 from werkzeug.security import check_password_hash
 
-operation_field_map = {
+acl_operation_field_map = {
     "read":     "allow_read",
     "write":    "allow_write",
     "create":   "allow_create",
     "unlink":   "allow_unlink"
+}
+
+dls_operation_field_map = {
+    "read":     "on_read",
+    "write":    "on_write",
+    "create":   "on_create",
+    "unlink":   "on_unlink"
 }
 
 def jwt_required(func, *args, **kwargs):
@@ -165,7 +172,7 @@ def check_ACL(model_name, operation, groups, user):
                 {"group_id": None}]})
 
     # Compute access
-    allow_list = [rule[operation_field_map[operation]] for rule in acl_rules]
+    allow_list = [rule[acl_operation_field_map[operation]] for rule in acl_rules]
     if allow_list:
         allow = reduce(lambda x, y: x | y, allow_list)
     else:
@@ -176,7 +183,7 @@ def check_ACL(model_name, operation, groups, user):
         raise AccessError(
             "Access Denied -- Model: '{}' "
             "Operation: '{}' - User: '{}'".format(
-                model_name, operation, user))
+                model_name, operation, user["_id"]))
     
     return
 
@@ -187,10 +194,10 @@ def check_DLS(model_name, operation, groups, user, docset):
     """
     q = build_DLS_query(model_name, operation, groups, user)
     
-    # Instantiate a DocSet (class Model)
+    # q is False if there are no access rules
+    # affecting the current user and operation.
     if q:
-        # q is False if there are no access rules
-        # affecting the current user and operation.
+        # Instantiate a DocSet (class Model)
         dls_docset = docset.__class__(docset.env, q)
 
         # If the docset the user has instantiated
@@ -204,7 +211,7 @@ def check_DLS(model_name, operation, groups, user, docset):
                 "to perform the requested operation. "
                 "Model: {} - Operation: '{}' - "
                 "User: '{}'".format(
-                    model_name, operation, user))
+                    model_name, operation, user["_id"]))
     return
 
 def build_DLS_query(model_name, operation, groups, user):
@@ -239,15 +246,22 @@ def build_DLS_query(model_name, operation, groups, user):
     one group specific rule may relax other group
     specific rules previously found (but not a global one).
     """
+    
+    # Root user bypasses all security checks
+    if user == ObjectId("000000000000000000000000"):
+        return False
+
     conn = Connection()
     
     # Search for DLS Rules associated to all of these groups
     group_rules = conn.db["base.dls"].find({
+        dls_operation_field_map[operation]: True,
         "model": model_name,
         "group_id": {"$in": groups}})
 
     # ...and also for DLS Rules not associated to any group (Globals)
     global_rules = conn.db["base.dls"].find({
+        dls_operation_field_map[operation]: True,
         "model": model_name,
         "group_id": None})
 
@@ -257,22 +271,20 @@ def build_DLS_query(model_name, operation, groups, user):
 
     # Evaluate global expressions and add them to their list
     for rule in global_rules:
-        query = None 
-        safe_eval("query = {}".format(rule.query), {"user": user})
+        query = safe_eval(rule["query"], {"user": user})
         if not isinstance(query, dict):
             raise ValueError(
                 "Invalid query in DLS rule '{}' ({}): '{}'".format(
-                    rule.name, rule._id, rule.query))
+                    rule.name, rule._id, rule["query"]))
         global_queries.append(query)
 
     # Evaluate user expressions and add them to their list
     for rule in group_rules:
-        query = None 
-        safe_eval("query = {}".format(rule.query), {"user": user})
+        query = safe_eval(rule["query"], {"user": user})
         if not isinstance(query, dict):
             raise ValueError(
                 "Invalid query in DLS rule '{}' ({}): '{}'".format(
-                    rule.name, rule._id, rule.query))
+                    rule.name, rule._id, rule["query"]))
         group_queries.append(query)
     
     # Build query structure

@@ -27,13 +27,22 @@ def test_init():
             "allow_write": False,
             "allow_create": False,
             "allow_unlink": False
+        })],
+        "dls_ids": [("create", {
+            "name": "__TEST DLS",
+            "model": "base.user",
+            "query": '{"email": "test@dls.com"}',
+            "on_read": False,
+            "on_write": False,
+            "on_create": False,
+            "on_unlink": False
         })]
     })
 
     # Create a new user
     user = self.create({
         "name": "__TEST User",
-        "email": "__TEST@email.com",
+        "email": "test@dls.com",
         "password": "Banana",
         "group_ids": [("add", group)]
     })
@@ -118,6 +127,7 @@ def test_ACL_deny_unlink():
     # Attempt to delete a document using unlink()
     with pytest.raises(AccessError):
         impersonated.unlink()
+
 
 def test_ACL_allow_unlink():
     # Change allow_unlink setting on group
