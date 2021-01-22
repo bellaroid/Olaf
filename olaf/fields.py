@@ -44,10 +44,7 @@ class BaseField:
 
     def __set__(self, instance, value):
         if getattr(instance, "_implicit_save", True):
-            value = self.__validate__(instance, value)
-            instance.env.cache.clear()
-            instance.env.cache.append("write", instance._name, instance.ids, {self.attr: value})
-            instance.env.cache.flush()
+            instance.write({self.attr: value})
         return None
 
     def __get__(self, instance, owner):

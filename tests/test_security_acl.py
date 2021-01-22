@@ -27,22 +27,13 @@ def test_init():
             "allow_write": False,
             "allow_create": False,
             "allow_unlink": False
-        })],
-        "dls_ids": [("create", {
-            "name": "__TEST DLS",
-            "model": "base.user",
-            "query": '{"email": "test@dls.com"}',
-            "on_read": False,
-            "on_write": False,
-            "on_create": False,
-            "on_unlink": False
         })]
     })
 
     # Create a new user
     user = self.create({
         "name": "__TEST User",
-        "email": "test@dls.com",
+        "email": "test@user.com",
         "password": "Banana",
         "group_ids": [("add", group)]
     })
@@ -141,7 +132,7 @@ def test_ACL_allow_unlink():
 
 def test_finish():
     """ Clean previous tests """
-    user = self.search({"email": {"$regex": "^__TEST"}})
+    user = self.search({"name": {"$regex": "^__TEST"}})
     user.unlink()
     group = self.env["base.group"].search({"name": {"$regex": "^__TEST"}})
     group.unlink()

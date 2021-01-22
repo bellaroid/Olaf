@@ -177,9 +177,6 @@ class Model(metaclass=ModelMeta):
         return conn.db[self._name].count_documents(self._query, session=self.env.session)
 
     def create(self, vals_list):
-        # Perform create access check
-        check_access(self, "create")
-
         # Convert vals to list if a dict was provided
         if isinstance(vals_list, dict):
             vals_list = [vals_list]
@@ -226,6 +223,9 @@ class Model(metaclass=ModelMeta):
         self.env.cache.append("create", self._name, None, docs)
         self.env.cache.flush()
         doc = self.__class__(self.env, {"_id": {"$in": ids}})
+
+        # Perform create access check
+        check_access(doc, "create")
 
         # Load x2many field data into write cache
         for field_name, value in x2m_dict.items():

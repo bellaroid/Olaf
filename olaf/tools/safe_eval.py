@@ -53,7 +53,7 @@ builtins = {
 }
 
 def safe_eval(code, _locals={}):
-    if '__' in code:
-        raise SecurityException()
+    # if '__' in code:
+    #     raise SecurityException()
     return eval(code, {'__builtins__': builtins}, _locals)
 

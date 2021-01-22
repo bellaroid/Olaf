@@ -243,7 +243,6 @@ class DocumentCache():
                         session=self.__session__)
         except Exception:
             self.clear()
-            raise
         self.clear()
 
     def is_pending(self, oid):
