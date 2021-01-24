@@ -540,7 +540,8 @@ class Model(metaclass=ModelMeta):
     def get(self, external_id):
         """ Finds a single document by its external id """
         mod_data = conn.db["base.model.data"].find_one(
-            {"model": self._name, "name": external_id})
+            {"model": self._name, "name": external_id}, 
+            session=self.env.session)
         
         if not mod_data:
             return None
@@ -592,7 +593,7 @@ class Model(metaclass=ModelMeta):
         """
         Loads massive data into a model.
         """
-
+        
         def _generate_metadata(import_fields):
             """ Generate field metadata dictionary and 
             a reduced list of fields (e.g. without 
