@@ -242,7 +242,11 @@ class DocumentCache():
                         {"_id": {"$in": oids}}, 
                         session=self.__session__)
         except Exception:
+            # Clear caché, then raise exception
+            # This allows handling database errors
+            # (Duplicate Keys, etc.)
             self.clear()
+            raise
         self.clear()
 
     def is_pending(self, oid):
