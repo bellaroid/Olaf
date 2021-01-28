@@ -7,8 +7,8 @@ class TestDLS:
 
     def test_init(self, root):
         # Create a group with an ACL
-        self.group = root.env["base.group"].create({
-            "name": "__TEST_acl_Group",
+        group = root.env["base.group"].create({
+            "name": "__TEST_ACL_Group",
             "acl_ids": [("create", {
                 "name": "__TEST ACL",
                 "model": "base.user",
@@ -29,52 +29,59 @@ class TestDLS:
         })
 
         # Create a new user
-        self.user = root.create({
+        user = root.create({
             "name": "__TEST User",
             "email": "test@user.com",
             "password": "Banana",
-            "group_ids": [("add", self.group)]
+            "group_ids": [("add", group)]
         })
 
         # Create a test record
-        self.test_document = root.create({
+        root.create({
             "name": "__TEST Document",
             "email": "test@document.com",
             "password": "Banana"
         })
 
         # Impersonate User
-        self.impersonated = root.env["base.user"].with_context(uid=self.user._id)
-
-        import pdb; pdb.set_trace()
-
+        self.impersonated = root.env["base.user"].with_context(uid=user._id)
 
     def test_DLS_read(self, root):
+        # Get previously created objects
+        user = root.env["base.user"].search({"email": "test@user.com"})
+        group = root.env["base.group"].search({"name": "__TEST_ACL_Group"})
+        impersonated = root.env["base.user"].with_context(uid=user._id)
+
         # Attempt to read users
         # DLS on_read is disabled
-        result = self.impersonated.search({})
+        result = impersonated.search({})
 
         # User should be able to read all users
         # Including root, admin, the test user and itself 
         assert(result.count() >= 4)
 
         # Modify the DLS setting
-        self.group.dls_ids.on_read = True
+        group.dls_ids.on_read = True
 
         # Now DLS on_read is active
         # User should be able to read only the test document
-        result = self.impersonated.search({})
+        result = impersonated.search({})
         result.ensure_one()
 
         # Attempting to obtain any other document
         # by browse or get should raise access errors
         with pytest.raises(AccessError):
-            self.impersonated.browse(ObjectId("000000000000000000000000"))
+            impersonated.browse(ObjectId("000000000000000000000000"))
 
         with pytest.raises(AccessError):
-            self.impersonated.get("base.user.admin")
+            impersonated.get("base.user.admin")
 
-    def test_DLS_write():
+    def test_DLS_write(self, root):
+        # Get previously created objects
+        user = root.env["base.user"].search({"email": "test@user.com"})
+        group = root.env["base.group"].search({"name": "__TEST_ACL_Group"})
+        impersonated = root.env["base.user"].with_context(uid=user._id)
+
         # Attempt to modify own data
         # First, disable on_read from previous test
         group.dls_ids.on_read = False
@@ -107,7 +114,12 @@ class TestDLS:
         assert(td.name == "__TEST Document")
 
 
-    def test_DLS_unlink():
+    def test_DLS_unlink(self, root):
+        # Get previously created objects
+        user = root.env["base.user"].search({"email": "test@user.com"})
+        group = root.env["base.group"].search({"name": "__TEST_ACL_Group"})
+        impersonated = root.env["base.user"].with_context(uid=user._id)
+        
         # Activate DLS on_unlink setting
         group.dls_ids.on_unlink = True
 
@@ -129,7 +141,12 @@ class TestDLS:
         assert(td.count() == 0)
 
 
-    def test_DLS_create():
+    def test_DLS_create(self, root):
+        # Get previously created objects
+        user = root.env["base.user"].search({"email": "test@user.com"})
+        group = root.env["base.group"].search({"name": "__TEST_ACL_Group"})
+        impersonated = root.env["base.user"].with_context(uid=user._id)
+
         # Activate DLS on_create setting
         group.dls_ids.on_create = True
 

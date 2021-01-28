@@ -374,12 +374,12 @@ def ensure_root_user():
         # Create root user
         logger.warning("Root user is not present, creating...")
         conn.db["base.user"].insert_one(
-            {"_id": root_uid, "name": "root", "email": "root", "password": passwd})
+            {"_id": root_uid, "name": "root", "email": "root", "password": passwd, "active": True})
     else:
         # Update root user's password
         logger.info("Overwriting root user password")
         conn.db["base.user"].update_one({"_id": root_uid}, {
-                                        "$set": {"name": "root", "email": "root", "password": passwd}})
+                                        "$set": {"name": "root", "email": "root", "password": passwd, "active": True}})
 
 
 def app_shutdown(sifnum, frame):

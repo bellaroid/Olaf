@@ -123,7 +123,7 @@ class Model(metaclass=ModelMeta):
         groups = [rel["group_oid"] for rel in user_group_rels]
 
         # Build DLS query (Document Level Security)
-        dls_query = build_DLS_query(self._name, "read", groups, uid)
+        dls_query = build_DLS_query(self._name, "read", groups, uid, self.env.session)
         if dls_query:
             # Constraint the provided query by intersecting it with the DLS query.
             new_query = {"$and": [query, dls_query]}

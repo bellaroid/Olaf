@@ -122,18 +122,21 @@ def check_access(docset, operation, skip_DLS=False):
     model_name = docset._name
     uid = docset.env.context["uid"]
 
+    # Get session from docset
+    session = docset.env.session
+
     # Root user bypasses all security checks
     if uid == ObjectId("000000000000000000000000"):
         return
 
     conn = Connection()
-    user = conn.db["base.user"].find_one({"_id": uid })
+    user = conn.db["base.user"].find_one({"_id": uid }, session=session)
     if not user:
         raise AccessError("User not found")
 
     # Search in user/group many2many intermediate collection
     # for groups this is user is related to.
-    user_group_rels = conn.db["base.user.group.rel"].find({"user_oid": uid})
+    user_group_rels = conn.db["base.user.group.rel"].find({"user_oid": uid}, session=session)
 
     # Create a list of groups this user belongs to
     groups = [rel["group_oid"] for rel in user_group_rels]
@@ -148,13 +151,13 @@ def check_access(docset, operation, skip_DLS=False):
     # The following function calls will raise an AccessError
     # if user doesn't have the required privileges to operate
     # the requested model.
-    check_ACL(model_name, operation, groups, user)
+    check_ACL(model_name, operation, groups, user, session)
     if not skip_DLS:
-        check_DLS(model_name, operation, groups, user, docset)
+        check_DLS(model_name, operation, groups, user, docset, session)
 
     return
 
-def check_ACL(model_name, operation, groups, user):
+def check_ACL(model_name, operation, groups, user, session):
     """
     Computes the ACL (Access Control List)
     Raises AccessError if the given user cannot perform
@@ -166,10 +169,12 @@ def check_ACL(model_name, operation, groups, user):
     conn = Connection()
     acl_rules = conn.db["base.acl"].find(
         {
+            "active": True,
             "model": model_name,
             "$or": [
                 {"group_id": {"$in": groups}}, 
-                {"group_id": None}]})
+                {"group_id": None}]},
+                session=session)
 
     # Compute access
     allow_list = [rule[acl_operation_field_map[operation]] for rule in acl_rules]
@@ -187,12 +192,12 @@ def check_ACL(model_name, operation, groups, user):
     
     return
 
-def check_DLS(model_name, operation, groups, user, docset):
+def check_DLS(model_name, operation, groups, user, docset, session):
     """
     Raises AccessError if the given user cannot perform
     the requested operation on the requested DocSet.
     """
-    q = build_DLS_query(model_name, operation, groups, user)
+    q = build_DLS_query(model_name, operation, groups, user, session)
     
     # q is False if there are no access rules
     # affecting the current user and operation.
@@ -214,7 +219,7 @@ def check_DLS(model_name, operation, groups, user, docset):
                     model_name, operation, user["_id"]))
     return
 
-def build_DLS_query(model_name, operation, groups, user):
+def build_DLS_query(model_name, operation, groups, user, session):
     """
     Builds the DLS (Document Level Security) query.
     
@@ -255,15 +260,17 @@ def build_DLS_query(model_name, operation, groups, user):
     
     # Search for DLS Rules associated to all of these groups
     group_rules = conn.db["base.dls"].find({
+        "active": True,
         dls_operation_field_map[operation]: True,
         "model": model_name,
-        "group_id": {"$in": groups}})
+        "group_id": {"$in": groups}}, session=session)
 
     # ...and also for DLS Rules not associated to any group (Globals)
     global_rules = conn.db["base.dls"].find({
+        "active": True,
         dls_operation_field_map[operation]: True,
         "model": model_name,
-        "group_id": None})
+        "group_id": None}, session=session)
 
     # Initialize queries list
     group_queries = []
