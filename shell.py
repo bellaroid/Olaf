@@ -63,16 +63,37 @@ class Shell:
         Console(locals=local_vars).interact()
 
     def run(self):
-        conn = Connection()
-        client = conn.cl
-        with client.start_session() as session:
-            with session.start_transaction():
-                uid = ObjectId("000000000000000000000000")
-                env = Environment(uid, session)
-                baseUser = registry["base.user"]
-                rootUser = baseUser(env)
-                self.console({"self": rootUser})
-                session.abort_transaction()
+        """
+        TODO: FIND A WAY TO DINAMICALLY CREATE TRANSACTIONS!!!
+        The following chunk of code works UNTIL the transaction
+        is commited or an exception is raised. Once a transaction
+        is ended, another one should be spawned.
+        """
+
+        # conn = Connection()
+        # client = conn.cl
+        # with client.start_session() as session:
+        #     with session.start_transaction():
+        #         uid = ObjectId("000000000000000000000000")
+        #         env = Environment(uid, session)
+        #         baseUser = registry["base.user"]
+        #         rootUser = baseUser(env)
+        #         self.console({"self": rootUser})
+        #         session.abort_transaction()
+
+        # TODO: Get rid of this once we find the cure.
+        uid = ObjectId("000000000000000000000000")
+        env = Environment(uid)
+        baseUser = registry["base.user"]
+        rootUser = baseUser(env)
+        _logger.warning("""
+        ******************** WARNING ********************
+        SHELL CURRENTLY DOES NOT SUPPORT TRANSACTIONS. 
+        EVERY OPERATION WILL BE COMMITED INTO DATABASE IMMEDIATELY. 
+        THIS MAY RESULT ON DATA LOSS OR CORRUPTION. 
+        PROCEED AT YOUR OWN RISK.
+        """)
+        self.console({"self": rootUser})
 
 shell = Shell()
 shell.run()
