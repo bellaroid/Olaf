@@ -3,7 +3,7 @@ click
 pymongo
 pytest
 pyyaml
-pyjwt
+pyjwt==1.7.1
 Jinja2
 python-dotenv
 python-dateutil
