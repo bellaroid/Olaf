@@ -2,8 +2,8 @@ import click
 import logging
 from logging import CRITICAL, ERROR, WARNING, INFO, DEBUG
 
-def setup_logger(logger):
-    logger.setLevel(logging.DEBUG)
+def setup_logger(logger, level=logging.INFO):
+    logger.setLevel(level)
 
     sh = logging.StreamHandler()
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s.%(funcName)s - %(message)s")

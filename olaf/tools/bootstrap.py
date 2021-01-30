@@ -11,17 +11,19 @@ from . import config
 from olaf.db import Connection
 from olaf.http import route, j2env
 from olaf.storage import AppContext
+from olaf.tools.logger import setup_logger
 from olaf.tools.environ import Environment
 from olaf.fields import One2many, Many2many, Many2one
 from olaf.cron import Scheduler
 
 
 logger = logging.getLogger(__name__)
+werkzeug_logger = logging.getLogger("werkzeug")
 file_name = "manifest.yml"
 root_uid = bson.ObjectId("000000000000000000000000")
 
 
-def initialize():
+def initialize(loglevel="info"):
     """
     Olaf Bootstraping Function
     """
@@ -223,6 +225,10 @@ def initialize():
 
     signal.signal(signal.SIGTERM, app_shutdown)
     signal.signal(signal.SIGINT, app_shutdown)
+
+    # Configure Olaf and Werkzeug loggers
+    setup_logger(logger, level=loglevel.upper())
+    setup_logger(werkzeug_logger, level=loglevel.upper())
 
     # Read All Modules
     color = click.style

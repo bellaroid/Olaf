@@ -7,13 +7,14 @@ from olaf.olaf.shell import Shell
 
 @click.command()
 @click.option("--shell", "-s", "shell", is_flag=True, type=bool)
-def main(shell):
+@click.option("--log-level", "-l", "loglevel", default="info", type=str)
+def main(shell, loglevel):
     if shell:
         ctx = AppContext()
         ctx.write("shell", True)
-        initialize()
+        initialize(loglevel=loglevel)
         shell = Shell()
         shell.run()
     else:
-        initialize()
+        initialize(loglevel=loglevel)
         start_server()
