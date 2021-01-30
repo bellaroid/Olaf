@@ -119,21 +119,21 @@ def initialize():
                                 tuples = list()
                                 # TODO: Review and retest create, add and replace
                                 # using YAML files. Create unit tests if possible.
-                                for d in value:
+                                for dd in value:
                                     # Every item is a dictionary of one element
                                     # {'operation_name': value}
-                                    op = next(iter(d))
+                                    op = next(iter(dd))
                                     if op == "create":
-                                        value = d[op]
+                                        value = dd[op]
                                     elif op == "add":
                                         value = env[field._comodel_name].get(
-                                            d[op])
+                                            dd[op])
                                         if not value:
                                             raise ValueError(
-                                                "Reference {} not found in database".format(d[op]))
+                                                "Reference {} not found in database".format(dd[op]))
                                     elif op == "replace":
                                         value = list()
-                                        for i in d[op]:
+                                        for i in dd[op]:
                                             oid = env[field._comodel_name].get(i)
                                             if not oid:
                                                 raise ValueError(
