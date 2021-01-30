@@ -465,9 +465,9 @@ class Model(metaclass=ModelMeta):
                         continue
                     # If value is not present among vals
                     if field_name not in vals:
-                        # Treat x2many assignments as empty lists
+                        # Ignore x2many fields
                         if isinstance(field, One2many) or isinstance(field, Many2many):
-                            vals[field_name] = list()
+                            continue
                         else:
                             # Check if field is marked as required
                             if field._required:
@@ -727,7 +727,8 @@ class Model(metaclass=ModelMeta):
                                 "_id": ObjectId(),
                                 "name": ext_id,
                                 "model": self._name,
-                                "res_id": oid
+                                "res_id": oid,
+                                "active": True
                             }
                         )
                 else:
