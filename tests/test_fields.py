@@ -291,9 +291,10 @@ def test_m2m():
     rec.m2m = [('replace', recs.ids)]
     assert(rec.m2m == recs)
 
-    # Uniqueness of the compound key
-    with pytest.raises(pymongo.errors.DuplicateKeyError):
-        rec.m2m = [('add', modrec._id)]
+    # Adding an existing relation should fail silently
+    assert(modrec in rec.m2m)
+    rec.m2m = [('add', modrec._id)]
+    assert(modrec in rec.m2m)
 
     with pytest.raises(pymongo.errors.DuplicateKeyError):
         rec.m2m = [('create', {"name": "m2m_6"})]
