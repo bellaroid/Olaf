@@ -589,8 +589,11 @@ class Many2many(RelationalField):
                 elif t[0] == "add":
                     oid = self._ensure_oid(t[1])
                     item = self._is_comodel_oid(oid, instance)
-                    instance.env[relname].create(
-                        {fld_a: instance._id, fld_b: item._id})
+                    # Check if relation exists before adding it
+                    if not instance.env[relname].search(
+                            {fld_a: instance._id, fld_b: item._id}):
+                        instance.env[relname].create(
+                            {fld_a: instance._id, fld_b: item._id})
                 elif t[0] == "clear":
                     instance.env[relname].search({fld_a: instance._id}).unlink()
                 elif t[0] == "replace":
