@@ -13,18 +13,15 @@ from bson import ObjectId
 from olaf import registry
 from olaf.db import Connection
 from olaf.tools import initialize
-from olaf.storage import AppContext
 from olaf.tools.environ import Environment
 
 _logger = logging.getLogger(__name__)
 
-ctx = AppContext()
-ctx.write("shell", True)
-
-initialize()
 
 def raise_keyboard_interrupt(*a):
     raise KeyboardInterrupt()
+
+
 class Console(code.InteractiveConsole):
     def __init__(self, locals=None, filename="<console>"):
         code.InteractiveConsole.__init__(self, locals, filename)
@@ -44,7 +41,7 @@ class Shell:
     """
     supported_shells = ['ipython', 'python']
 
-    def console(self, local_vars): 
+    def console(self, local_vars):
         shells_to_try = self.supported_shells
         for shell in shells_to_try:
             try:
@@ -87,13 +84,10 @@ class Shell:
         baseUser = registry["base.user"]
         rootUser = baseUser(env)
         _logger.warning("""
-        ******************** WARNING ********************
+
         SHELL CURRENTLY DOES NOT SUPPORT TRANSACTIONS. 
         EVERY OPERATION WILL BE COMMITED INTO DATABASE IMMEDIATELY. 
         THIS MAY RESULT ON DATA LOSS OR CORRUPTION. 
         PROCEED AT YOUR OWN RISK.
         """)
         self.console({"self": rootUser})
-
-shell = Shell()
-shell.run()
