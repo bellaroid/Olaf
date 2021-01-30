@@ -6,3 +6,10 @@ base.user:
     password: admin
     group_ids:
       - add: base.group.admin
+  -
+    id: base.user.public
+    name: Public user
+    email: public
+    password: public
+    group_ids:
+      - add: base.group.public
