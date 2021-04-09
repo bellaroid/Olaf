@@ -30,8 +30,8 @@ class Config:
     """
     APP_URL =               Setting("str",  os.environ.get("APP_URL", "127.0.0.1"))
     APP_PORT =              Setting("int",  os.environ.get("APP_PORT", 5000))
-    APP_DEBUG =             Setting("bool", os.environ.get("APP_DEBUG", True))
-    APP_RELOAD =            Setting("bool", os.environ.get("APP_RELOAD", True))
+    APP_DEBUG =             Setting("bool", os.environ.get("APP_DEBUG", False))
+    APP_RELOAD =            Setting("bool", os.environ.get("APP_RELOAD", False))
     SECRET_KEY =            Setting("str",  os.getenv("SECRET_KEY", "SoMeThInGrEaLlYhArDtOgUeSs"))
     DB_NAME =               Setting("str",  os.getenv("MONGODB_NAME", "olaf"))
     DB_PASS =               Setting("str",  os.getenv("MONGODB_PASS", None))
